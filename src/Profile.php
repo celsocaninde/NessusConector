@@ -53,12 +53,12 @@ class Profile extends CoreProfile
         $fields = array_column($rights, 'field');
         $profiles = [];
         foreach ($DB->request([
-            'SELECT' => ['id'],
+            'SELECT' => ['id', 'name'],
             'FROM'   => 'glpi_profiles',
         ]) as $row) {
             $profileId = (int) ($row['id'] ?? 0);
             if ($profileId > 0) {
-                $profiles[] = $profileId;
+                $profiles[$profileId] = (string) ($row['name'] ?? '');
             }
         }
 
@@ -68,30 +68,55 @@ class Profile extends CoreProfile
 
         $existing = [];
         foreach ($DB->request([
-            'SELECT' => ['profiles_id', 'name'],
+            'SELECT' => ['id', 'profiles_id', 'name', 'rights'],
             'FROM'   => 'glpi_profilerights',
             'WHERE'  => [
                 'name' => $fields,
             ],
         ]) as $row) {
-            $existing[(int) $row['profiles_id'] . '|' . (string) $row['name']] = true;
+            $existing[(int) $row['profiles_id'] . '|' . (string) $row['name']] = [
+                'id'     => (int) $row['id'],
+                'rights' => (int) ($row['rights'] ?? 0),
+            ];
         }
 
-        foreach ($profiles as $profileId) {
+        foreach ($profiles as $profileId => $profileName) {
             foreach ($rights as $right) {
                 $field = (string) $right['field'];
                 $key = $profileId . '|' . $field;
+                $defaultRights = static::getDefaultRightsForProfile($profileName, $right['rights']);
                 if (isset($existing[$key])) {
+                    if ($defaultRights > 0 && $existing[$key]['rights'] === 0) {
+                        $DB->update('glpi_profilerights', [
+                            'rights' => $defaultRights,
+                        ], [
+                            'id' => $existing[$key]['id'],
+                        ]);
+                    }
                     continue;
                 }
 
                 $DB->insert('glpi_profilerights', [
                     'profiles_id' => $profileId,
                     'name'        => $field,
-                    'rights'      => 0,
+                    'rights'      => $defaultRights,
                 ]);
             }
         }
+    }
+
+    private static function getDefaultRightsForProfile(string $profileName, array $allowedRights): int
+    {
+        if (strcasecmp($profileName, 'Super-Admin') !== 0) {
+            return 0;
+        }
+
+        $mask = 0;
+        foreach ($allowedRights as $right) {
+            $mask |= (int) $right;
+        }
+
+        return $mask;
     }
 
     public static function saveRightsForProfile(int $profileId, array $submittedRights): void

@@ -126,7 +126,8 @@ class Config extends CommonDBTM
         echo "<div class='mt-3 d-flex gap-2'>";
         echo Html::hidden('id', ['value' => $this->fields['id'] ?? 0]);
         echo Html::submit(_sx('button', 'Save'), ['name' => 'update']);
-        echo Html::submit(__('Test connection', 'nessusglpi'), ['name' => 'test_connection']);
+        echo Html::submit(__('Test Nessus/VM connection', 'nessusglpi'), ['name' => 'test_connection']);
+        echo Html::submit(__('Test WAS connection', 'nessusglpi'), ['name' => 'test_was_connection']);
         echo '</div>';
         echo '</div>';
         Html::closeForm();

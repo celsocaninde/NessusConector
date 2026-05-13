@@ -68,7 +68,10 @@ $bulkFormId = 'nessusglpi-delete-scans-form';
 $deleteConfirm = addslashes(__('Are you sure you want to delete the selected scans and all plugin data related to them?', 'nessusglpi'));
 $syncConfirm = addslashes(__('Do you want to queue this scan synchronization now?', 'nessusglpi'));
 
-echo "<p><a class='btn btn-primary' href='scan.form.php'>" . __('Add') . "</a> <a class='btn btn-outline-secondary' href='scans.vulnerabilities.php'>" . __('View consolidated vulnerabilities', 'nessusglpi') . "</a></p>";
+echo "<p><a class='btn btn-primary' href='scan.form.php'>" . __('Add') . "</a> ";
+echo "<a class='btn btn-outline-primary' href='scan.browser.php?source=" . Scan::SOURCE_NESSUS . "'>" . __('Browse Nessus / Tenable VM scans', 'nessusglpi') . "</a> ";
+echo "<a class='btn btn-outline-primary' href='scan.browser.php?source=" . Scan::SOURCE_WAS . "'>" . __('Browse Tenable WAS scans', 'nessusglpi') . "</a> ";
+echo "<a class='btn btn-outline-secondary' href='scans.vulnerabilities.php'>" . __('View consolidated vulnerabilities', 'nessusglpi') . "</a></p>";
 echo "<form id='" . $bulkFormId . "' method='post' action=''>";
 echo Html::hidden('_glpi_csrf_token', ['value' => $csrfToken]);
 echo "</form>";
@@ -76,7 +79,7 @@ echo "<div style='margin-bottom: 12px;'>";
 echo '<button type="submit" form="' . $bulkFormId . '" name="delete_selected_scans" value="1" class="btn btn-outline-danger" onclick="return confirm(\'' . $deleteConfirm . '\');">' . Html::cleanInputText(__('Delete selected', 'nessusglpi')) . '</button>';
 echo "</div>";
 echo "<table class='tab_cadre_fixehov'>";
-echo "<tr><th><input type='checkbox' onclick=\"document.querySelectorAll('input[name=\\'scan_ids[]\\']').forEach(cb => cb.checked = this.checked);\"></th><th>ID</th><th>" . __('Entity') . "</th><th>" . __('Name') . "</th><th>" . __('Scan ID', 'nessusglpi') . "</th><th>" . __('Scan executed at', 'nessusglpi') . "</th><th>" . __('Last synchronization', 'nessusglpi') . "</th><th>" . __('Status') . "</th><th>" . __('Actions') . "</th></tr>";
+echo "<tr><th><input type='checkbox' onclick=\"document.querySelectorAll('input[name=\\'scan_ids[]\\']').forEach(cb => cb.checked = this.checked);\"></th><th>ID</th><th>" . __('Entity') . "</th><th>" . __('Source', 'nessusglpi') . "</th><th>" . __('Name') . "</th><th>" . __('Scan ID', 'nessusglpi') . "</th><th>" . __('Scan executed at', 'nessusglpi') . "</th><th>" . __('Last synchronization', 'nessusglpi') . "</th><th>" . __('Status') . "</th><th>" . __('Actions') . "</th></tr>";
 
 foreach ($DB->request([
     'FROM'  => 'glpi_plugin_nessusglpi_scans',
@@ -87,6 +90,7 @@ foreach ($DB->request([
     echo "<td><input type='checkbox' name='scan_ids[]' value='" . (int) $row['id'] . "' form='" . $bulkFormId . "'></td>";
     echo "<td>" . (int) $row['id'] . "</td>";
     echo "<td>" . Html::cleanInputText(Dropdown::getDropdownName('glpi_entities', (int) ($row['entities_id'] ?? 0))) . "</td>";
+    echo "<td>" . Html::cleanInputText(Scan::getSourceLabel($row['scan_type'] ?? Scan::SOURCE_NESSUS)) . "</td>";
     echo "<td>" . htmlspecialchars((string) ($row['name'] ?? ''), ENT_QUOTES) . "</td>";
     echo "<td>" . htmlspecialchars((string) ($row['scan_id'] ?? ''), ENT_QUOTES) . "</td>";
     echo "<td>" . htmlspecialchars((string) ($row['last_scan_at'] ?? '-'), ENT_QUOTES) . "</td>";
@@ -96,7 +100,11 @@ foreach ($DB->request([
     echo "<a href='scan.form.php?id=" . (int) $row['id'] . "'>" . __('Edit') . "</a>";
     echo " <a class='btn btn-sm btn-outline-secondary' href='scan.vulnerabilities.php?scan_id=" . (int) $row['id'] . "'>" . __('View vulnerabilities', 'nessusglpi') . "</a>";
 
-    if ($nessusBaseUrl !== '' && (string) ($row['last_sync_status'] ?? '') === 'success') {
+    if (
+        $nessusBaseUrl !== ''
+        && (string) ($row['last_sync_status'] ?? '') === 'success'
+        && Scan::normalizeSource($row['scan_type'] ?? Scan::SOURCE_NESSUS) === Scan::SOURCE_NESSUS
+    ) {
         $nessusUrl = $nessusBaseUrl . '/#/scans/reports/' . rawurlencode((string) ($row['scan_id'] ?? '')) . '/scan-summary';
         echo " <a class='btn btn-sm btn-outline-dark' target='_blank' rel='noopener noreferrer' href='" . htmlspecialchars($nessusUrl, ENT_QUOTES) . "'>" . __('Open in Nessus', 'nessusglpi') . "</a>";
     }
@@ -130,5 +138,3 @@ if ($openJobs > 0) {
 
 echo "</div>";
 Html::footer();
-
-

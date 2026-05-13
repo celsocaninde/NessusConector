@@ -206,6 +206,10 @@ class TicketService
 
     private function loadPluginDetails(array $vulnerabilityFields, ?array $hostFields, ?array $scanFields): ?array
     {
+        if (Scan::normalizeSource($scanFields['scan_type'] ?? Scan::SOURCE_NESSUS) === Scan::SOURCE_WAS) {
+            return null;
+        }
+
         $nessusHostId = trim((string) ($hostFields['nessus_host_id'] ?? ''));
         $pluginId = trim((string) ($vulnerabilityFields['plugin_id_nessus'] ?? ''));
         $scanId = trim((string) ($scanFields['scan_id'] ?? ''));

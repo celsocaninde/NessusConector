@@ -14,6 +14,9 @@ use function array_values;
 
 class Scan extends CommonDBTM
 {
+    public const SOURCE_NESSUS = 'nessus';
+    public const SOURCE_WAS = 'was';
+
     public static $table = 'glpi_plugin_nessusglpi_scans';
 
     public static $rightname = 'plugin_nessusglpi_scan';
@@ -52,6 +55,31 @@ class Scan extends CommonDBTM
             1 => 'Low',
             0 => 'Info',
         ];
+    }
+
+    public static function getSourceOptions(): array
+    {
+        return [
+            self::SOURCE_NESSUS => __('Nessus / Tenable VM', 'nessusglpi'),
+            self::SOURCE_WAS    => __('Tenable WAS', 'nessusglpi'),
+        ];
+    }
+
+    public static function normalizeSource($source): string
+    {
+        $source = strtolower(trim((string) $source));
+
+        return array_key_exists($source, self::getSourceOptions())
+            ? $source
+            : self::SOURCE_NESSUS;
+    }
+
+    public static function getSourceLabel($source): string
+    {
+        $source = self::normalizeSource($source);
+        $options = self::getSourceOptions();
+
+        return (string) ($options[$source] ?? $source);
     }
 
     public static function normalizeImportSeverities($severities): array
@@ -326,10 +354,15 @@ class Scan extends CommonDBTM
             }
         }
         $selectedSeverities = static::decodeImportSeverities($this->fields['import_severities'] ?? null);
+        $selectedSource = static::normalizeSource($this->fields['scan_type'] ?? self::SOURCE_NESSUS);
 
         echo "<form method='post' action='" . static::getFormURL() . "'>";
         echo "<div class='card card-body'>";
         echo "<h2>" . __('Nessus scan', 'nessusglpi') . '</h2>';
+        echo "<p>";
+        echo "<a class='btn btn-outline-primary' href='scan.browser.php?source=" . self::SOURCE_NESSUS . "'>" . __('Browse Nessus / Tenable VM scans', 'nessusglpi') . "</a> ";
+        echo "<a class='btn btn-outline-primary' href='scan.browser.php?source=" . self::SOURCE_WAS . "'>" . __('Browse Tenable WAS scans', 'nessusglpi') . "</a>";
+        echo "</p>";
 
         if (is_string($message) && $message !== '') {
             $class = $messageType === 'error' ? 'alert alert-danger' : 'alert alert-info';
@@ -338,6 +371,12 @@ class Scan extends CommonDBTM
 
         echo "<table class='tab_cadre_fixe'>";
         echo "<tr><th>" . __('Entity') . "</th><td>" . Html::cleanInputText((string) $entityName) . "</td></tr>";
+        echo "<tr><th>" . __('Source', 'nessusglpi') . "</th><td><select name='scan_type' class='form-select'>";
+        foreach (static::getSourceOptions() as $source => $label) {
+            $selected = $source === $selectedSource ? ' selected' : '';
+            echo "<option value='" . Html::cleanInputText($source) . "'" . $selected . '>' . Html::cleanInputText($label) . '</option>';
+        }
+        echo '</select></td></tr>';
         echo "<tr><th>" . __('Scan ID', 'nessusglpi') . "</th><td><input type='text' name='scan_id' value='" . Html::cleanInputText($this->fields['scan_id'] ?? '') . "' class='form-control'></td></tr>";
         echo "<tr><th>" . __('Imported severities', 'nessusglpi') . "</th><td>";
         foreach (static::getSeverityOptions() as $severity => $label) {
@@ -376,6 +415,7 @@ class Scan extends CommonDBTM
     public function prepareInputForAdd($input): array
     {
         $input['entities_id']       = (int) ($input['entities_id'] ?? Session::getActiveEntity());
+        $input['scan_type']         = static::normalizeSource($input['scan_type'] ?? self::SOURCE_NESSUS);
         $input['import_severities'] = array_key_exists('import_severities', $input)
             ? static::encodeImportSeverities($input['import_severities'])
             : static::encodeImportSeverities($this->fields['import_severities'] ?? null);
@@ -390,6 +430,7 @@ class Scan extends CommonDBTM
     public function prepareInputForUpdate($input): array
     {
         $input['entities_id']       = (int) ($input['entities_id'] ?? $this->fields['entities_id'] ?? Session::getActiveEntity());
+        $input['scan_type']         = static::normalizeSource($input['scan_type'] ?? $this->fields['scan_type'] ?? self::SOURCE_NESSUS);
         $input['import_severities'] = array_key_exists('import_severities', $input)
             ? static::encodeImportSeverities($input['import_severities'])
             : (string) ($this->fields['import_severities'] ?? static::encodeImportSeverities(null));
@@ -400,5 +441,3 @@ class Scan extends CommonDBTM
         return $input;
     }
 }
-
-

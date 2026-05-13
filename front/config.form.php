@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use GlpiPlugin\Nessusglpi\Config;
 use GlpiPlugin\Nessusglpi\NessusClient;
+use GlpiPlugin\Nessusglpi\TenableWasClient;
 
 include('../../../inc/includes.php');
 
@@ -39,6 +40,27 @@ if (isset($_POST['test_connection'])) {
             'message' => $message !== ''
                 ? $message
                 : __('Unexpected error while testing the Nessus connection.', 'nessusglpi'),
+        ];
+    }
+}
+
+if (isset($_POST['test_was_connection'])) {
+    $candidate = Config::createFromInput($_POST);
+    $config = $candidate;
+
+    try {
+        $result = (new TenableWasClient($candidate))->testConnection();
+        $testResult = [
+            'ok'      => true,
+            'message' => (string) ($result['message'] ?? __('Connection successful.', 'nessusglpi')),
+        ];
+    } catch (Throwable $e) {
+        $message = trim((string) $e->getMessage());
+        $testResult = [
+            'ok'      => false,
+            'message' => $message !== ''
+                ? $message
+                : __('Unexpected error while testing the Tenable WAS connection.', 'nessusglpi'),
         ];
     }
 }

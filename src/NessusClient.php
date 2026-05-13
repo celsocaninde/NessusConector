@@ -35,6 +35,13 @@ class NessusClient
         return $this->request('GET', '/scans/' . rawurlencode($scanId));
     }
 
+    public function getAllScans(): array
+    {
+        $data = $this->request('GET', '/scans');
+
+        return $this->extractItems($data, ['scans', 'items', 'data', 'results']);
+    }
+
     public function getScanHosts(string $scanId): array
     {
         $data = $this->getScanDetails($scanId);
@@ -112,12 +119,10 @@ class NessusClient
             $body = curl_exec($ch);
             if ($body === false) {
                 $error = curl_error($ch);
-                curl_close($ch);
                 throw new RuntimeException($this->humanizeCurlError($error));
             }
 
             $statusCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
         } catch (Throwable $e) {
             throw new RuntimeException($this->humanizeRuntimeError($e->getMessage()), 0, $e);
         } finally {
@@ -139,6 +144,33 @@ class NessusClient
         }
 
         return $decoded;
+    }
+
+    private function extractItems(array $response, array $keys): array
+    {
+        foreach ($keys as $key) {
+            if (isset($response[$key]) && is_array($response[$key])) {
+                return array_values(array_filter($response[$key], 'is_array'));
+            }
+        }
+
+        foreach (['data', 'response', 'result'] as $containerKey) {
+            if (!isset($response[$containerKey]) || !is_array($response[$containerKey])) {
+                continue;
+            }
+
+            foreach ($keys as $key) {
+                if (isset($response[$containerKey][$key]) && is_array($response[$containerKey][$key])) {
+                    return array_values(array_filter($response[$containerKey][$key], 'is_array'));
+                }
+            }
+        }
+
+        if (array_is_list($response)) {
+            return array_values(array_filter($response, 'is_array'));
+        }
+
+        return [];
     }
 
     private function isValidBaseUrl(string $baseUrl): bool
