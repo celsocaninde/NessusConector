@@ -193,7 +193,17 @@
                     method: 'POST',
                     credentials: 'same-origin',
                     body: payload,
-                    headers: { 'Accept': 'application/json' },
+                    headers: {
+                        'Accept': 'application/json',
+                        // Mark as AJAX so GLPI reads the CSRF token from the
+                        // X-Glpi-Csrf-Token header and validates it with
+                        // preserve_token: true. Without this, GLPI treats the
+                        // request as a normal form POST and consumes the form's
+                        // single-use token, which then breaks repeated tests and
+                        // the subsequent Save (HTTP 403 "CSRF check failed").
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-Glpi-Csrf-Token': csrfToken,
+                    },
                 });
 
                 let data = null;

@@ -11,7 +11,7 @@ function plugin_nessusglpi_run_install(): bool
             `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
             `api_url` VARCHAR(255) DEFAULT NULL,
             `access_key` VARCHAR(255) DEFAULT NULL,
-            `secret_key` VARCHAR(255) DEFAULT NULL,
+            `secret_key` TEXT DEFAULT NULL,
             `timeout` INT UNSIGNED NOT NULL DEFAULT 30,
             `allowed_itemtypes` JSON DEFAULT NULL,
             `date_mod` TIMESTAMP NULL DEFAULT NULL,
@@ -175,6 +175,10 @@ function plugin_nessusglpi_run_install(): bool
             KEY `status` (`status`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         "ALTER TABLE `glpi_plugin_nessusglpi_sync_jobs` MODIFY COLUMN `entities_id` INT UNSIGNED NOT NULL DEFAULT 0",
+        // GLPIKey::encrypt() output is far longer than the original key (often
+        // > 1KB), so VARCHAR(255) overflows on save ("Data too long for column
+        // 'secret_key'"). Widen to TEXT to hold the encrypted credential.
+        "ALTER TABLE `glpi_plugin_nessusglpi_configs` MODIFY COLUMN `secret_key` TEXT DEFAULT NULL",
     ];
 
     foreach ($upgradeQueries as $query) {

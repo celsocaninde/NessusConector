@@ -112,6 +112,12 @@ class Config extends CommonDBTM
 
         $assetsBase    = ($CFG_GLPI['root_doc'] ?? '') . '/plugins/nessusglpi';
         $assetVersion  = defined('PLUGIN_NESSUSGLPI_VERSION') ? PLUGIN_NESSUSGLPI_VERSION : '1';
+        $assetDir      = dirname(__DIR__) . '/public';
+        // Append the file mtime so browsers fetch the new asset whenever it
+        // changes, even between plugin releases (the plugin version alone does
+        // not bust the cache during development/hotfixes).
+        $cssVersion    = $assetVersion . '-' . (@filemtime($assetDir . '/css/config-form.css') ?: '0');
+        $jsVersion     = $assetVersion . '-' . (@filemtime($assetDir . '/js/config-form.js') ?: '0');
         $ajaxUrl       = $assetsBase . '/ajax/config.test.php';
 
         $configState = [
@@ -133,7 +139,7 @@ class Config extends CommonDBTM
         ];
 
         echo '<link rel="stylesheet" href="'
-            . Html::cleanInputText($assetsBase . '/css/config-form.css?v=' . $assetVersion) . '">';
+            . Html::cleanInputText($assetsBase . '/css/config-form.css?v=' . $cssVersion) . '">';
 
         echo '<div class="nessus-config-page" data-nessus-config="'
             . htmlspecialchars((string) json_encode($configState), ENT_QUOTES) . '">';
@@ -315,7 +321,7 @@ class Config extends CommonDBTM
         Html::closeForm();
         echo '</div>'; // /page
 
-        echo '<script src="' . Html::cleanInputText($assetsBase . '/js/config-form.js?v=' . $assetVersion) . '" defer></script>';
+        echo '<script src="' . Html::cleanInputText($assetsBase . '/js/config-form.js?v=' . $jsVersion) . '" defer></script>';
 
         return true;
     }
@@ -341,11 +347,9 @@ class Config extends CommonDBTM
         $input['timeout']           = max(1, (int) ($input['timeout'] ?? 30));
         $input['date_mod']          = date('Y-m-d H:i:s');
 
-        foreach (['secret_key', 'was_secret_key'] as $secretField) {
-            if (array_key_exists($secretField, $input)) {
-                $input[$secretField] = self::encryptSecret((string) $input[$secretField]);
-            }
-        }
+        // Secret keys are stored as-is (plaintext, like access_key). The previous
+        // GLPIKey encryption made saving fragile (length overflow / key-read
+        // failures), so we keep the simpler legacy behaviour for reliability.
 
         return $input;
     }
@@ -360,38 +364,14 @@ class Config extends CommonDBTM
         return self::decryptSecret($this->fields['was_secret_key'] ?? '');
     }
 
-    private static function encryptSecret(string $value): string
-    {
-        if (trim($value) === '' || !class_exists(\GLPIKey::class)) {
-            return $value;
-        }
-
-        try {
-            // GLPIKey::encrypt() returns '' when the security key cannot be read; in that case
-            // keep the plaintext so the credential is not silently dropped.
-            $encrypted = (new \GLPIKey())->encrypt($value);
-            return $encrypted !== '' ? $encrypted : $value;
-        } catch (\Throwable $e) {
-            return $value;
-        }
-    }
-
     public static function decryptSecret($stored): string
     {
-        $stored = (string) $stored;
-        if ($stored === '' || !class_exists(\GLPIKey::class)) {
-            return $stored;
-        }
-
-        try {
-            $decrypted = (new \GLPIKey())->decrypt($stored);
-        } catch (\Throwable $e) {
-            $decrypted = '';
-        }
-
-        // Rows written before encryption was introduced are plaintext: GLPIKey::decrypt()
-        // returns '' for them, so fall back to the stored value until the next save re-encrypts it.
-        return $decrypted !== '' ? $decrypted : $stored;
+        // Secrets are stored as plaintext (old method), so this is a passthrough.
+        // We deliberately do NOT call GLPIKey::decrypt() here: it emits a PHP
+        // warning ("Unable to extract nonce from string") on plaintext values,
+        // and with GLPI debug mode on that warning is injected into AJAX
+        // responses and breaks JSON parsing in the connection test.
+        return (string) $stored;
     }
 
     private function extractAllowedItemtypes($raw): array

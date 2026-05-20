@@ -23,7 +23,24 @@ if (!in_array($provider, ['nessus', 'was'], true)) {
     return;
 }
 
-$candidate = Config::createFromInput($_POST);
+// The form never echoes the saved secret back (and the user often leaves the
+// credential fields untouched), so fall back to the stored configuration for
+// any blank field. This lets "Test connection" reuse the already-saved keys
+// without forcing the user to retype them.
+$stored = Config::getSingleton();
+$input  = $_POST;
+
+if (trim((string) ($input['api_url'] ?? '')) === '') {
+    $input['api_url'] = (string) ($stored->fields['api_url'] ?? '');
+}
+if (trim((string) ($input['access_key'] ?? '')) === '') {
+    $input['access_key'] = (string) ($stored->fields['access_key'] ?? '');
+}
+if (trim((string) ($input['secret_key'] ?? '')) === '') {
+    $input['secret_key'] = $stored->getSecretKey();
+}
+
+$candidate = Config::createFromInput($input);
 $startedAt = microtime(true);
 
 try {
