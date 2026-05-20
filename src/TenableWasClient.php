@@ -18,17 +18,35 @@ class TenableWasClient
 
     public function testConnection(): array
     {
-        $response = $this->searchScanConfigs(1);
-        $items = $this->extractItems($response, ['items', 'configs', 'data', 'results']);
+        // Step 1: verify credentials via /server/status (shared endpoint with VM)
+        $status = $this->request('GET', '/server/status');
+        $serverStatus = (string) ($status['status'] ?? 'unknown');
 
-        return [
-            'status'  => 'ok',
-            'message' => sprintf(
-                __('Connection successful. Tenable WAS returned %d configuration record(s).', 'nessusglpi'),
-                count($items)
-            ),
-            'data'    => $response,
-        ];
+        // Step 2: attempt WAS-specific endpoint — may fail if account lacks WAS Config role
+        try {
+            $wasResponse = $this->searchScanConfigs(1);
+            $items = $this->extractItems($wasResponse, ['items', 'configs', 'data', 'results']);
+            return [
+                'status'  => 'ok',
+                'message' => sprintf(
+                    __('Connection successful. Nessus status: %s. WAS: %d config(s) accessible.', 'nessusglpi'),
+                    $serverStatus,
+                    count($items)
+                ),
+                'data' => $wasResponse,
+            ];
+        } catch (RuntimeException $e) {
+            // Credentials are valid but WAS Config role is missing.
+            // Scan import via /was/v2/scans/{id} may still work fine.
+            return [
+                'status'  => 'ok',
+                'message' => sprintf(
+                    __('Connection successful. Nessus status: %s. WAS config access restricted — scan import may still work.', 'nessusglpi'),
+                    $serverStatus
+                ),
+                'data' => $status,
+            ];
+        }
     }
 
     public function searchScanConfigs(int $limit = 200, int $offset = 0): array
@@ -164,7 +182,7 @@ class TenableWasClient
     {
         $baseUrl = trim((string) ($this->config->fields['api_url'] ?? ''));
         $accessKey = trim((string) ($this->config->fields['access_key'] ?? ''));
-        $secretKey = trim((string) ($this->config->fields['secret_key'] ?? ''));
+        $secretKey = trim($this->config->getSecretKey());
         $timeout = max(1, (int) ($this->config->fields['timeout'] ?? 30));
 
         if ($baseUrl === '') {
@@ -205,8 +223,8 @@ class TenableWasClient
                 CURLOPT_HTTPHEADER     => $headers,
                 CURLOPT_TIMEOUT        => $timeout,
                 CURLOPT_CONNECTTIMEOUT => min($timeout, 10),
-                CURLOPT_SSL_VERIFYPEER => false,
-                CURLOPT_SSL_VERIFYHOST => 0,
+                CURLOPT_SSL_VERIFYPEER => true,
+                CURLOPT_SSL_VERIFYHOST => 2,
             ];
 
             if ($body !== null) {
@@ -263,7 +281,17 @@ class TenableWasClient
         $scheme = strtolower((string) ($parts['scheme'] ?? ''));
         $host = (string) ($parts['host'] ?? '');
 
-        return in_array($scheme, ['http', 'https'], true) && $host !== '';
+        if (!in_array($scheme, ['http', 'https'], true) || $host === '') {
+            return false;
+        }
+
+        if (filter_var($host, FILTER_VALIDATE_IP) !== false) {
+            if (str_starts_with($host, '127.') || str_starts_with($host, '169.254.') || $host === '::1') {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function humanizeCurlError(string $error): string

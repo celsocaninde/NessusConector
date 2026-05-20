@@ -71,7 +71,7 @@ class NessusClient
     {
         $baseUrl = trim((string) ($this->config->fields['api_url'] ?? ''));
         $accessKey = trim((string) ($this->config->fields['access_key'] ?? ''));
-        $secretKey = trim((string) ($this->config->fields['secret_key'] ?? ''));
+        $secretKey = trim($this->config->getSecretKey());
         $timeout = max(1, (int) ($this->config->fields['timeout'] ?? 30));
 
         if ($baseUrl === '') {
@@ -187,7 +187,17 @@ class NessusClient
         $scheme = strtolower((string) ($parts['scheme'] ?? ''));
         $host = (string) ($parts['host'] ?? '');
 
-        return in_array($scheme, ['http', 'https'], true) && $host !== '';
+        if (!in_array($scheme, ['http', 'https'], true) || $host === '') {
+            return false;
+        }
+
+        if (filter_var($host, FILTER_VALIDATE_IP) !== false) {
+            if (str_starts_with($host, '127.') || str_starts_with($host, '169.254.') || $host === '::1') {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function humanizeCurlError(string $error): string

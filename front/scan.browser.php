@@ -56,6 +56,54 @@ function nessusglpi_browser_pretty_date(string $value): string
     return $timestamp !== false ? date('Y-m-d H:i:s', $timestamp) : $value;
 }
 
+function nessusglpi_browser_relative_date(string $value): string
+{
+    if ($value === '' || $value === '-') {
+        return '';
+    }
+
+    if (is_numeric($value)) {
+        $timestamp = (int) $value;
+        if ($timestamp > 9999999999) {
+            $timestamp = (int) floor($timestamp / 1000);
+        }
+    } else {
+        $timestamp = strtotime($value);
+    }
+
+    if (!is_int($timestamp) || $timestamp <= 0) {
+        return '';
+    }
+
+    $diff = time() - $timestamp;
+    if ($diff < 0) {
+        $diff = 0;
+    }
+
+    if ($diff < 60) {
+        return __('just now', 'nessusglpi');
+    }
+    if ($diff < 3600) {
+        $minutes = (int) floor($diff / 60);
+        return sprintf(_n('%d minute ago', '%d minutes ago', $minutes, 'nessusglpi'), $minutes);
+    }
+    if ($diff < 86400) {
+        $hours = (int) floor($diff / 3600);
+        return sprintf(_n('%d hour ago', '%d hours ago', $hours, 'nessusglpi'), $hours);
+    }
+    if ($diff < 2592000) {
+        $days = (int) floor($diff / 86400);
+        return sprintf(_n('%d day ago', '%d days ago', $days, 'nessusglpi'), $days);
+    }
+    if ($diff < 31536000) {
+        $months = (int) floor($diff / 2592000);
+        return sprintf(_n('%d month ago', '%d months ago', $months, 'nessusglpi'), $months);
+    }
+
+    $years = (int) floor($diff / 31536000);
+    return sprintf(_n('%d year ago', '%d years ago', $years, 'nessusglpi'), $years);
+}
+
 function nessusglpi_browser_item_id(array $row, array $paths): string
 {
     return nessusglpi_browser_first_string($row, $paths);
@@ -136,7 +184,6 @@ function nessusglpi_browser_date(array $row): string
         ['finished_at'],
         ['last_scan_time'],
         ['last_modification_date'],
-        ['last_modification_date'],
         ['last_seen'],
         ['updated_at'],
         ['created_at'],
@@ -147,6 +194,21 @@ function nessusglpi_browser_date(array $row): string
     return nessusglpi_browser_pretty_date($value);
 }
 
+function nessusglpi_browser_raw_date(array $row): string
+{
+    return nessusglpi_browser_first_string($row, [
+        ['completed_at'],
+        ['finished_at'],
+        ['last_scan_time'],
+        ['last_modification_date'],
+        ['last_seen'],
+        ['updated_at'],
+        ['created_at'],
+        ['start_time'],
+        ['started_at'],
+    ]);
+}
+
 function nessusglpi_browser_form_url(string $source, string $scanId): string
 {
     return 'scan.form.php?' . http_build_query([
@@ -155,108 +217,217 @@ function nessusglpi_browser_form_url(string $source, string $scanId): string
     ]);
 }
 
-function nessusglpi_browser_source_button(string $source, string $label, string $activeSource): string
+function nessusglpi_browser_status_bucket(string $status): string
 {
-    $class = $source === $activeSource ? 'btn btn-primary' : 'btn btn-outline-primary';
-    $href = 'scan.browser.php?' . http_build_query(['source' => $source]);
+    $value = strtolower(trim($status));
+    if ($value === '' || $value === '-') {
+        return 'unknown';
+    }
 
-    return '<a class="' . $class . '" href="' . Html::cleanInputText($href) . '">' . Html::cleanInputText($label) . '</a>';
+    $buckets = [
+        'success' => ['completed', 'success', 'imported', 'published', 'finished', 'ok', 'done', 'enabled', '1', 'true', 'active'],
+        'running' => ['running', 'processing', 'pending', 'queued', 'publishing', 'starting', 'resuming', 'in_progress', 'scanning'],
+        'warning' => ['stopped', 'canceled', 'cancelled', 'paused', 'suspended', 'disabled', '0', 'false'],
+        'danger'  => ['failed', 'error', 'aborted', 'crashed', 'rejected'],
+        'muted'   => ['empty', 'new', 'draft', 'imported_no_data'],
+    ];
+
+    foreach ($buckets as $bucket => $values) {
+        if (in_array($value, $values, true)) {
+            return $bucket;
+        }
+    }
+
+    return 'unknown';
 }
 
-function nessusglpi_browser_render_scans(array $scans, string $source): void
+function nessusglpi_browser_status_label(string $status): string
 {
-    if ($scans === []) {
-        echo '<div class="alert alert-warning" role="alert">' . Html::cleanInputText(__('No scans were returned by the API.', 'nessusglpi')) . '</div>';
-        return;
+    $clean = trim($status);
+    if ($clean === '') {
+        return __('Unknown', 'nessusglpi');
     }
 
-    echo "<table class='tab_cadre_fixehov'>";
-    echo '<tr>';
-    echo '<th>' . Html::cleanInputText(__('Name')) . '</th>';
-    echo '<th>' . Html::cleanInputText(__('Target', 'nessusglpi')) . '</th>';
-    echo '<th>' . Html::cleanInputText(__('Scan ID', 'nessusglpi')) . '</th>';
-    echo '<th>' . Html::cleanInputText(__('Status')) . '</th>';
-    echo '<th>' . Html::cleanInputText(__('Last run', 'nessusglpi')) . '</th>';
-    echo '<th>' . Html::cleanInputText(__('Actions')) . '</th>';
-    echo '</tr>';
-
-    foreach ($scans as $scanRow) {
-        if (!is_array($scanRow)) {
-            continue;
-        }
-
-        $scanId = nessusglpi_browser_scan_id($scanRow, $source);
-        $name = nessusglpi_browser_name($scanRow);
-        $target = nessusglpi_browser_target($scanRow);
-        $status = nessusglpi_browser_status($scanRow);
-        $date = nessusglpi_browser_date($scanRow);
-
-        echo '<tr>';
-        echo '<td>' . Html::cleanInputText($name !== '' ? $name : '-') . '</td>';
-        echo '<td>' . Html::cleanInputText($target !== '' ? $target : '-') . '</td>';
-        echo '<td><code>' . Html::cleanInputText($scanId !== '' ? $scanId : '-') . '</code></td>';
-        echo '<td>' . Html::cleanInputText($status !== '' ? $status : '-') . '</td>';
-        echo '<td>' . Html::cleanInputText($date) . '</td>';
-        echo '<td>';
-        if ($scanId !== '') {
-            $href = nessusglpi_browser_form_url($source, $scanId);
-            echo '<a class="btn btn-sm btn-primary" href="' . Html::cleanInputText($href) . '">' . Html::cleanInputText(__('Use this scan', 'nessusglpi')) . '</a>';
-        } else {
-            echo Html::cleanInputText(__('Missing scan ID', 'nessusglpi'));
-        }
-        echo '</td>';
-        echo '</tr>';
-    }
-
-    echo '</table>';
+    return ucwords(str_replace(['_', '-'], ' ', strtolower($clean)));
 }
 
-function nessusglpi_browser_render_was_configs(array $configs): void
+function nessusglpi_browser_icon_copy(): string
 {
-    if ($configs === []) {
-        echo '<div class="alert alert-warning" role="alert">' . Html::cleanInputText(__('No WAS configurations were returned by the API.', 'nessusglpi')) . '</div>';
-        return;
+    return '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M3 11V3.5A1.5 1.5 0 0 1 4.5 2H11"/></svg>';
+}
+
+function nessusglpi_browser_icon_arrow(): string
+{
+    return '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8h9"/><path d="M9 4.5 12.5 8 9 11.5"/></svg>';
+}
+
+function nessusglpi_browser_icon_search(): string
+{
+    return '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m13 13-2.6-2.6"/></svg>';
+}
+
+function nessusglpi_browser_icon_empty(): string
+{
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.65-4.65"/><path d="M8 10.5h5"/></svg>';
+}
+
+function nessusglpi_browser_render_card(array $row, string $source, string $context): void
+{
+    $isWasConfig = $context === 'was_config';
+    $isWasExecution = $context === 'was_execution';
+
+    if ($isWasConfig) {
+        $itemId = nessusglpi_browser_config_id($row);
+    } else {
+        $itemId = nessusglpi_browser_scan_id($row, $source);
     }
 
-    echo "<table class='tab_cadre_fixehov'>";
-    echo '<tr>';
-    echo '<th>' . Html::cleanInputText(__('Name')) . '</th>';
-    echo '<th>' . Html::cleanInputText(__('Target', 'nessusglpi')) . '</th>';
-    echo '<th>' . Html::cleanInputText(__('Config ID', 'nessusglpi')) . '</th>';
-    echo '<th>' . Html::cleanInputText(__('Status')) . '</th>';
-    echo '<th>' . Html::cleanInputText(__('Actions')) . '</th>';
-    echo '</tr>';
+    $name = nessusglpi_browser_name($row);
+    $target = nessusglpi_browser_target($row);
+    $rawStatus = nessusglpi_browser_status($row);
+    $statusBucket = nessusglpi_browser_status_bucket($rawStatus);
+    $statusLabel = nessusglpi_browser_status_label($rawStatus);
+    $prettyDate = $isWasConfig ? '' : nessusglpi_browser_date($row);
+    $rawDate = $isWasConfig ? '' : nessusglpi_browser_raw_date($row);
+    $relativeDate = $isWasConfig ? '' : nessusglpi_browser_relative_date($rawDate);
 
-    foreach ($configs as $configRow) {
-        if (!is_array($configRow)) {
-            continue;
-        }
+    $haystack = strtolower(trim($name . ' ' . $target . ' ' . $itemId . ' ' . $rawStatus));
 
-        $configId = nessusglpi_browser_config_id($configRow);
-        $name = nessusglpi_browser_name($configRow);
-        $target = nessusglpi_browser_target($configRow);
-        $status = nessusglpi_browser_status($configRow);
-        $href = 'scan.browser.php?' . http_build_query([
+    $displayName = $name !== '' ? $name : __('Unnamed', 'nessusglpi');
+    $displayTarget = $target !== '' ? $target : '';
+
+    if ($isWasConfig) {
+        $ctaHref = 'scan.browser.php?' . http_build_query([
             'source'    => Scan::SOURCE_WAS,
-            'config_id' => $configId,
+            'config_id' => $itemId,
         ]);
-
-        echo '<tr>';
-        echo '<td>' . Html::cleanInputText($name !== '' ? $name : '-') . '</td>';
-        echo '<td>' . Html::cleanInputText($target !== '' ? $target : '-') . '</td>';
-        echo '<td><code>' . Html::cleanInputText($configId !== '' ? $configId : '-') . '</code></td>';
-        echo '<td>' . Html::cleanInputText($status !== '' ? $status : '-') . '</td>';
-        echo '<td>';
-        if ($configId !== '') {
-            echo '<a class="btn btn-sm btn-primary" href="' . Html::cleanInputText($href) . '">' . Html::cleanInputText(__('View executions', 'nessusglpi')) . '</a>';
-        } else {
-            echo Html::cleanInputText(__('Missing config ID', 'nessusglpi'));
-        }
-        echo '</td>';
-        echo '</tr>';
+        $ctaLabel = __('View executions', 'nessusglpi');
+    } else {
+        $ctaHref = nessusglpi_browser_form_url($source, $itemId);
+        $ctaLabel = __('Use this scan', 'nessusglpi');
     }
 
-    echo '</table>';
+    echo '<article class="nessus-scan-card" data-nessus-card data-status="' . Html::cleanInputText($statusBucket) . '" data-haystack="' . Html::cleanInputText($haystack) . '">';
+
+    echo '<div class="nessus-scan-card__header">';
+    echo '<h3 class="nessus-scan-card__title">' . Html::cleanInputText($displayName) . '</h3>';
+    echo '<span class="nessus-status nessus-status--' . Html::cleanInputText($statusBucket) . '" title="' . Html::cleanInputText($rawStatus !== '' ? $rawStatus : __('No status reported', 'nessusglpi')) . '">'
+        . Html::cleanInputText($statusLabel)
+        . '</span>';
+    echo '</div>';
+
+    if ($displayTarget !== '') {
+        echo '<div class="nessus-scan-card__target">' . Html::cleanInputText($displayTarget) . '</div>';
+    }
+
+    echo '<div class="nessus-scan-card__meta">';
+    if ($itemId !== '') {
+        $idLabel = $isWasConfig ? __('Config ID', 'nessusglpi') : __('Scan ID', 'nessusglpi');
+        echo '<span class="nessus-scan-card__id" data-nessus-copy="' . Html::cleanInputText($itemId) . '" title="' . Html::cleanInputText(sprintf(__('Copy %s', 'nessusglpi'), $idLabel)) . '" role="button" tabindex="0">';
+        echo nessusglpi_browser_icon_copy();
+        echo '<span>' . Html::cleanInputText($itemId) . '</span>';
+        echo '</span>';
+    } else {
+        echo '<span class="nessus-scan-card__missing">' . Html::cleanInputText(__('Missing ID', 'nessusglpi')) . '</span>';
+    }
+    echo '</div>';
+
+    echo '<div class="nessus-scan-card__footer">';
+
+    if (!$isWasConfig && $prettyDate !== '' && $prettyDate !== '-') {
+        $dateDisplay = $relativeDate !== '' ? $relativeDate : $prettyDate;
+        echo '<span class="nessus-scan-card__date" title="' . Html::cleanInputText($prettyDate) . '">' . Html::cleanInputText($dateDisplay) . '</span>';
+    } else {
+        echo '<span class="nessus-scan-card__date">' . Html::cleanInputText($isWasConfig ? __('Configuration', 'nessusglpi') : '—') . '</span>';
+    }
+
+    if ($itemId !== '') {
+        echo '<a class="nessus-scan-card__cta" href="' . Html::cleanInputText($ctaHref) . '">'
+            . Html::cleanInputText($ctaLabel)
+            . nessusglpi_browser_icon_arrow()
+            . '</a>';
+    } else {
+        echo '<span class="nessus-scan-card__missing">' . Html::cleanInputText(__('Cannot use this entry', 'nessusglpi')) . '</span>';
+    }
+
+    echo '</div>';
+    echo '</article>';
+}
+
+function nessusglpi_browser_render_grid(array $items, string $source, string $context): void
+{
+    if ($items === []) {
+        echo '<div class="alert alert-warning nessus-alert-soft" role="alert">'
+            . Html::cleanInputText(__('The API returned no results for this view.', 'nessusglpi'))
+            . '</div>';
+        return;
+    }
+
+    echo '<section data-nessus-browser class="nessus-browser">';
+
+    $statusCounts = [];
+    foreach ($items as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+        $bucket = nessusglpi_browser_status_bucket(nessusglpi_browser_status($item));
+        $statusCounts[$bucket] = ($statusCounts[$bucket] ?? 0) + 1;
+    }
+    $totalItems = array_sum($statusCounts);
+
+    echo '<div class="nessus-browser__toolbar">';
+    echo '<label class="nessus-browser__search">';
+    echo '<span class="nessus-browser__search-icon">' . nessusglpi_browser_icon_search() . '</span>';
+    echo '<input type="search" data-nessus-search autocomplete="off" spellcheck="false" placeholder="' . Html::cleanInputText(__('Search by name, target or ID…', 'nessusglpi')) . '">';
+    echo '</label>';
+
+    echo '<select class="nessus-browser__status-filter" data-nessus-status-filter aria-label="' . Html::cleanInputText(__('Filter by status', 'nessusglpi')) . '">';
+    echo '<option value="all">' . Html::cleanInputText(__('All statuses', 'nessusglpi')) . '</option>';
+    $statusOptions = [
+        'success' => __('Completed', 'nessusglpi'),
+        'running' => __('Running', 'nessusglpi'),
+        'warning' => __('Stopped / disabled', 'nessusglpi'),
+        'danger'  => __('Failed', 'nessusglpi'),
+        'muted'   => __('Empty / draft', 'nessusglpi'),
+        'unknown' => __('Unknown', 'nessusglpi'),
+    ];
+    foreach ($statusOptions as $bucket => $label) {
+        $count = $statusCounts[$bucket] ?? 0;
+        if ($count === 0) {
+            continue;
+        }
+        echo '<option value="' . Html::cleanInputText($bucket) . '">'
+            . Html::cleanInputText($label) . ' (' . (int) $count . ')'
+            . '</option>';
+    }
+    echo '</select>';
+
+    echo '<button type="button" class="nessus-browser__clear" data-nessus-clear hidden>' . Html::cleanInputText(__('Clear filters', 'nessusglpi')) . '</button>';
+    echo '<span class="nessus-browser__meta">'
+        . sprintf(
+            Html::cleanInputText(__('Showing %1$s of %2$s', 'nessusglpi')),
+            '<strong data-nessus-count>' . (int) $totalItems . '</strong>',
+            '<span data-nessus-total>' . (int) $totalItems . '</span>'
+        )
+        . '</span>';
+    echo '</div>';
+
+    echo '<div class="nessus-scan-grid" data-nessus-grid>';
+    foreach ($items as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+        nessusglpi_browser_render_card($item, $source, $context);
+    }
+    echo '</div>';
+
+    echo '<div class="nessus-empty" data-nessus-empty hidden>';
+    echo nessusglpi_browser_icon_empty();
+    echo '<h3>' . Html::cleanInputText(__('No results match your filters', 'nessusglpi')) . '</h3>';
+    echo '<p>' . Html::cleanInputText(__('Try a different search term or clear the status filter.', 'nessusglpi')) . '</p>';
+    echo '</div>';
+
+    echo '</section>';
 }
 
 $source = Scan::normalizeSource($_GET['source'] ?? Scan::SOURCE_NESSUS);
@@ -279,30 +450,52 @@ try {
 
 Html::header(__('Browse Tenable scans', 'nessusglpi'), $_SERVER['PHP_SELF'], 'plugins', 'GlpiPlugin\\Nessusglpi\\Scan');
 
-echo "<div class='card card-body'>";
-echo '<h2>' . Html::cleanInputText(__('Browse Tenable scans', 'nessusglpi')) . '</h2>';
-echo '<p class="d-flex gap-2">';
-echo nessusglpi_browser_source_button(Scan::SOURCE_NESSUS, __('Nessus / Tenable VM', 'nessusglpi'), $source);
-echo nessusglpi_browser_source_button(Scan::SOURCE_WAS, __('Tenable WAS', 'nessusglpi'), $source);
-echo ' <a class="btn btn-outline-secondary" href="scan.php">' . Html::cleanInputText(__('Back')) . '</a>';
-echo '</p>';
+global $CFG_GLPI;
+$assetsBase = ($CFG_GLPI['root_doc'] ?? '') . '/plugins/nessusglpi';
+$assetVersion = defined('PLUGIN_NESSUSGLPI_VERSION') ? PLUGIN_NESSUSGLPI_VERSION : '1';
+
+echo '<link rel="stylesheet" href="' . Html::cleanInputText($assetsBase . '/css/scan-browser.css?v=' . $assetVersion) . '">';
+
+echo '<div class="card card-body">';
+
+echo '<div class="nessus-browser__header">';
+echo '<h2 class="nessus-browser__title">'
+    . Html::cleanInputText(__('Browse Tenable scans', 'nessusglpi'))
+    . '</h2>';
+
+echo '<div class="nessus-browser__source-tabs" role="tablist">';
+$nessusHref = 'scan.browser.php?' . http_build_query(['source' => Scan::SOURCE_NESSUS]);
+$wasHref = 'scan.browser.php?' . http_build_query(['source' => Scan::SOURCE_WAS]);
+echo '<a href="' . Html::cleanInputText($nessusHref) . '" class="' . ($source === Scan::SOURCE_NESSUS ? 'is-active' : '') . '">'
+    . Html::cleanInputText(__('Nessus / Tenable VM', 'nessusglpi'))
+    . '</a>';
+echo '<a href="' . Html::cleanInputText($wasHref) . '" class="' . ($source === Scan::SOURCE_WAS ? 'is-active' : '') . '">'
+    . Html::cleanInputText(__('Tenable WAS', 'nessusglpi'))
+    . '</a>';
+echo '</div>';
+
+echo '<a class="btn btn-outline-secondary btn-sm" href="scan.php">&larr; ' . Html::cleanInputText(__('Back')) . '</a>';
+echo '</div>';
 
 if ($error !== null) {
-    echo '<div class="alert alert-danger" role="alert">' . Html::cleanInputText($error) . '</div>';
+    echo '<div class="alert alert-danger nessus-alert-soft" role="alert">' . Html::cleanInputText($error) . '</div>';
 } elseif ($source === Scan::SOURCE_WAS && $configId === '') {
-    echo '<h3>' . Html::cleanInputText(__('WAS configurations', 'nessusglpi')) . '</h3>';
-    nessusglpi_browser_render_was_configs($items);
+    echo '<h3 class="h4">' . Html::cleanInputText(__('WAS configurations', 'nessusglpi')) . '</h3>';
+    nessusglpi_browser_render_grid($items, $source, 'was_config');
 } else {
     if ($source === Scan::SOURCE_WAS) {
         $backHref = 'scan.browser.php?' . http_build_query(['source' => Scan::SOURCE_WAS]);
-        echo '<p><a class="btn btn-outline-secondary" href="' . Html::cleanInputText($backHref) . '">' . Html::cleanInputText(__('Back to WAS configurations', 'nessusglpi')) . '</a></p>';
-        echo '<h3>' . Html::cleanInputText(__('WAS scan executions', 'nessusglpi')) . '</h3>';
+        echo '<div class="nessus-browser__back"><a class="btn btn-outline-secondary btn-sm" href="' . Html::cleanInputText($backHref) . '">&larr; ' . Html::cleanInputText(__('Back to WAS configurations', 'nessusglpi')) . '</a></div>';
+        echo '<h3 class="h4">' . Html::cleanInputText(__('WAS scan executions', 'nessusglpi')) . '</h3>';
+        nessusglpi_browser_render_grid($items, $source, 'was_execution');
     } else {
-        echo '<h3>' . Html::cleanInputText(__('Nessus / Tenable VM scans', 'nessusglpi')) . '</h3>';
+        echo '<h3 class="h4">' . Html::cleanInputText(__('Nessus / Tenable VM scans', 'nessusglpi')) . '</h3>';
+        nessusglpi_browser_render_grid($items, $source, 'scan');
     }
-
-    nessusglpi_browser_render_scans($items, $source);
 }
 
 echo '</div>';
+
+echo '<script src="' . Html::cleanInputText($assetsBase . '/js/scan-browser.js?v=' . $assetVersion) . '" defer></script>';
+
 Html::footer();

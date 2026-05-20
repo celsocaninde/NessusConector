@@ -2,7 +2,7 @@
 
 Este documento explica o plugin `nessusglpi` passo a passo: instalacao, permissoes, configuracao, sincronizacao com o Nessus, gravacao no banco, telas do GLPI e criacao de tickets.
 
-O plugin integra relatorios/scans do Nessus ao GLPI. Ele busca hosts e vulnerabilidades pela API do Nessus, tenta vincular cada host a um ativo do GLPI, grava historico de sincronizacoes e permite abrir tickets a partir das vulnerabilidades encontradas.
+O plugin integra scans do Nessus / Tenable VM e do Tenable WAS ao GLPI. Ele busca hosts e vulnerabilidades pela API, tenta vincular cada host a um ativo do GLPI, grava historico de sincronizacoes, sincroniza de forma desatendida por cron, e cria e resolve tickets automaticamente a partir das vulnerabilidades encontradas.
 
 ## 1. Estrutura do plugin
 
@@ -15,7 +15,7 @@ Arquivos principais:
 | `sql/install.php` | Cria tabelas do plugin e registro padrao de configuracao. |
 | `sql/uninstall.php` | Remove as tabelas do plugin. |
 | `src/Profile.php` | Define os direitos/permissoes do plugin por perfil. |
-| `src/Config.php` | Guarda URL/chaves da API Nessus, timeout e tipos de ativos permitidos. |
+| `src/Config.php` | Guarda URL/chaves da API Nessus (secret key criptografada com GLPIKey), timeout e tipos de ativos permitidos. |
 | `src/NessusClient.php` | Cliente HTTP/cURL usado para conversar com a API do Nessus. |
 | `src/TenableWasClient.php` | Cliente HTTP/cURL usado para conversar com a API Tenable WAS. |
 | `src/Scan.php` | Representa os scans cadastrados no GLPI e monta o menu principal. |
@@ -23,10 +23,13 @@ Arquivos principais:
 | `src/SyncService.php` | Faz a sincronizacao de fato: Nessus -> GLPI. |
 | `src/AssetMatcher.php` | Tenta casar host do Nessus com ativo existente no GLPI. |
 | `src/Vulnerability.php` | Mostra vulnerabilidades em scans e nas abas dos ativos. |
-| `src/TicketService.php` | Cria tickets no GLPI a partir de vulnerabilidades ou hosts pendentes. |
+| `src/TicketService.php` | Cria tickets no GLPI a partir de vulnerabilidades ou hosts pendentes, e resolve tickets cuja vulnerabilidade nao e mais detectada. |
+| `src/SyncCron.php` | Tarefas de cron: processa a fila e reenfileira scans ativos sem precisar de aba aberta. |
+| `src/AuditLog.php` | Grava o log de atividade do plugin (sincronizacoes, falhas, resolucoes automaticas). |
 | `front/*.php` | Telas HTML acessadas pelo usuario no GLPI. |
 | `ajax/*.php` | Endpoints AJAX para fila e criacao de tickets. |
 | `locales/*` | Traducoes do plugin. |
+| `tests/` | Suite de testes dos geradores de conteudo de ticket (PHPUnit + runner sem dependencias). |
 
 Namespace PHP principal:
 
@@ -38,7 +41,7 @@ Compatibilidade declarada:
 
 ```text
 GLPI 11.0.0 ate 11.0.99
-Plugin 1.2.0
+Plugin 1.3.0
 ```
 
 ## 2. O que o plugin cria no banco
@@ -47,7 +50,7 @@ Na instalacao, o plugin cria tabelas proprias:
 
 | Tabela | O que guarda |
 | --- | --- |
-| `glpi_plugin_nessusglpi_configs` | Configuracao da API Nessus: URL, access key, secret key, timeout e tipos de ativos permitidos. |
+| `glpi_plugin_nessusglpi_configs` | Configuracao da API Nessus: URL, access key, secret key (criptografada em repouso com GLPIKey), timeout e tipos de ativos permitidos. |
 | `glpi_plugin_nessusglpi_scans` | Scans cadastrados no GLPI, com o ID/UUID externo e tipo da origem: `nessus` ou `was`. |
 | `glpi_plugin_nessusglpi_scan_runs` | Historico de execucoes/sincronizacoes. |
 | `glpi_plugin_nessusglpi_sync_jobs` | Fila de sincronizacao. |
@@ -55,7 +58,7 @@ Na instalacao, o plugin cria tabelas proprias:
 | `glpi_plugin_nessusglpi_vulnerabilities` | Vulnerabilidades importadas. Mantem historico e marca quais estao atuais. |
 | `glpi_plugin_nessusglpi_vulnerability_tickets` | Relacao entre vulnerabilidade e ticket criado. |
 | `glpi_plugin_nessusglpi_host_tickets` | Relacao entre host pendente e ticket criado. |
-| `glpi_plugin_nessusglpi_logs` | Tabela prevista para logs do plugin. |
+| `glpi_plugin_nessusglpi_logs` | Log de atividade do plugin: sincronizacoes, falhas e resolucoes automaticas de ticket. |
 
 Tambem cria direitos em `glpi_profilerights` para controlar acesso por perfil.
 
@@ -289,9 +292,11 @@ Para descobrir os IDs via API:
 
 ## 7. Como a fila de sincronizacao funciona
 
-O plugin tem tabela de fila, mas nao tem um worker externo permanente.
+O plugin tem uma fila que e processada de duas formas: ao vivo pela tela de scans e, de forma desatendida, por tarefas de cron do GLPI.
 
-O funcionamento atual e:
+### 7.1 Processamento ao vivo (tela aberta)
+
+O funcionamento e:
 
 1. Um scan e criado ou o usuario clica em `Sync`.
 
@@ -335,7 +340,18 @@ O funcionamento atual e:
    error
    ```
 
-Consequencia pratica: se ninguem abrir/manter a tela de scans, a fila pode ficar parada. Para automatizar de verdade, seria necessario criar um comando CLI ou cron que chame o mesmo processamento da fila.
+### 7.2 Processamento por cron (sem aba aberta)
+
+A partir da versao 1.3.0 o plugin registra duas tarefas de cron (itemtype `GlpiPlugin\Nessusglpi\SyncCron`), gerenciaveis em `Configurar -> Acoes automaticas`:
+
+| Tarefa | Frequencia padrao | O que faz |
+| --- | --- | --- |
+| `queue` | a cada 5 min | Drena os jobs pendentes da fila (limitado a 10 por execucao). |
+| `autosync` | diaria | Reenfileira scans ativos cujo ultimo sync e mais antigo que a frequencia da tarefa. |
+
+Por padrao rodam no modo cron interno do GLPI (disparado nos acessos as paginas). Para uso pesado ou totalmente desatendido, troque o modo da tarefa para externo e configure o cron do sistema. A tela de scans continua drenando a fila ao vivo quando esta aberta.
+
+> Apos atualizar o plugin de uma versao anterior, abra `Configurar -> Plugins` e clique em `Atualizar` para que as tarefas de cron sejam registradas.
 
 ## 8. Fluxo completo da sincronizacao
 
@@ -408,7 +424,9 @@ Passo a passo interno de `SyncService::runScan()`:
 
 16. Ao finalizar, atualiza o run e o scan com status `success`.
 
-17. Se ocorrer erro, salva status `error` e a mensagem do erro.
+17. Aciona a resolucao automatica de tickets: chamados cuja vulnerabilidade nao aparece mais sao marcados como solucionados (ver secao 13).
+
+18. Se ocorrer erro, salva status `error` e a mensagem do erro.
 
 ### 8.1 Sincronizacao Tenable WAS
 
@@ -626,9 +644,9 @@ Fluxo:
 
 7. Grava relacao em `glpi_plugin_nessusglpi_vulnerability_tickets`.
 
-### Ticket agrupado
+### Ticket agrupado (pai + filhos)
 
-O agrupamento considera uma chave baseada em:
+Quando o usuario seleciona varias vulnerabilidades e clica em **Group & create**, o plugin agrupa pela chave:
 
 - plugin ID Nessus;
 - nome do plugin;
@@ -637,7 +655,30 @@ O agrupamento considera uma chave baseada em:
 - severidade numerica;
 - label de severidade.
 
-Assim, uma mesma vulnerabilidade em varios ativos pode virar um ticket unico com lista de ativos afetados.
+Para cada grupo com 2 ou mais hosts afetados, o plugin cria uma **hierarquia pai-filho**:
+
+- **1 chamado pai** com o overview do grupo: hero da severidade, lista de hosts afetados, sinopse/descricao/solucao, CVSS, CVEs, plugin output, footer. O pai e vinculado a todos os ativos via `glpi_items_tickets`.
+
+- **N chamados filhos** (um por host unico do grupo). Cada filho contem o detalhe individual da vulnerabilidade naquele host, igual ao ticket individual. O filho e vinculado ao seu ativo e ao pai.
+
+- Os filhos sao linkados ao pai via `glpi_tickets_tickets` com `link = 3` (`CommonITILObject_CommonITILObject::SON_OF`). O GLPI mostra essa arvore no painel **Chamados vinculados** do ticket.
+
+Se o grupo tem apenas 1 host afetado, o plugin **nao** cria hierarquia: gera um unico chamado individual (igual ao botao "Create selected").
+
+Dedup: se ja existe um chamado pai para esse grupo (detectado percorrendo `Ticket_Ticket SON_OF`), o pai e reusado e apenas filhos faltantes sao criados.
+
+Retorno do `createGroupedTicketsFromVulnerabilities`:
+
+```php
+[
+  'groups'   => [
+    ['parent' => 123, 'children' => [124, 125, 126]],
+    ...
+  ],
+  'parents'  => [123, ...],
+  'children' => [124, 125, 126, ...],
+]
+```
 
 ### Ticket de host pendente
 
@@ -648,6 +689,16 @@ Quando o host do Nessus nao foi casado com ativo do GLPI, o plugin pode criar um
 - IP;
 - status de casamento;
 - mensagem de detalhe.
+
+### Resolucao automatica de tickets
+
+Ao final de cada sincronizacao bem-sucedida, o plugin verifica os tickets que ele mesmo criou:
+
+- se a vulnerabilidade vinculada nao e mais detectada no ativo (nenhum achado atual com a mesma identidade `vuln_key` + ativo), o ticket e movido para **Solucionado** com um acompanhamento explicativo;
+- a resolucao usa `ITILSolution` e e reversivel: o solicitante pode reabrir o chamado;
+- um ticket **pai** so e resolvido quando **todos** os achados filhos sumirem;
+- tickets ja solucionados/fechados ou excluidos sao ignorados;
+- a acao e registrada no log de atividade e nunca quebra a sincronizacao (falhas sao engolidas).
 
 ## 14. Passo a passo operacional recomendado
 
@@ -686,6 +737,8 @@ Quando o host do Nessus nao foi casado com ativo do GLPI, o plugin pode criar um
 15. Em sincronizacoes futuras, clicar em `Sync` no scan desejado.
 
 ## 15. Logs e diagnostico
+
+O plugin tem um **log de atividade** proprio em `Plugins -> Nessus Conector -> Activity log`, que registra sincronizacoes, falhas e resolucoes automaticas de ticket (requer direito READ em `plugin_nessusglpi_config`).
 
 Logs uteis no ambiente Docker:
 
@@ -774,17 +827,17 @@ last_sync_status = queued
 
 Explicacao:
 
-O processamento depende da tela de scans chamar `ajax/sync.queue.php`.
+A fila e processada pela tarefa de cron `queue` (a cada 5 min) e tambem ao vivo pela tela de scans.
 
 Como testar:
 
-1. Abrir `Plugins -> Nessus Conector -> Scans`.
+1. Conferir em `Configurar -> Acoes automaticas` se a tarefa `queue` (itemtype `GlpiPlugin\Nessusglpi\SyncCron`) esta ativa e, se quiser, force a execucao por la.
 
-2. Manter a tela aberta alguns segundos.
+2. Como alternativa, abrir `Plugins -> Nessus Conector -> Scans` e manter a tela aberta alguns segundos.
 
 3. Atualizar e conferir status.
 
-Para automacao real, criar um comando CLI/cron para chamar `SyncJobService::processNextPendingJob()`.
+Se nada processar: confirme que o plugin foi atualizado para 1.3.0 (para registrar o cron) e, para uso pesado, mude o modo da tarefa para externo (cron do sistema).
 
 ### WAS nao sincroniza usando ID de configuracao
 
@@ -814,15 +867,16 @@ O botao `Open in Nessus` aparece quando:
 
 ## 17. Pontos de atencao tecnicos
 
-- As chaves da API Nessus sao salvas na tabela de configuracao do plugin.
-- A validacao SSL esta desativada no cliente cURL.
-- A fila de sincronizacao depende de AJAX na tela de scans.
+- As chaves da API Nessus sao salvas na tabela de configuracao do plugin; a secret key e criptografada em repouso com GLPIKey (valores legados em texto puro seguem funcionando ate o proximo salvamento da configuracao).
+- A validacao SSL esta desativada no cliente Nessus VM; o cliente Tenable WAS valida SSL.
+- A fila de sincronizacao roda por cron (`SyncCron`) e tambem ao vivo pela tela de scans.
 - O casamento de ativos usa `name`; IP ainda nao e usado para matching.
 - No modo WAS, a aplicacao/URL e convertida para host importado usando o dominio da URL.
 - No modo WAS, informe o UUID da execucao do scan, nao o `config_id`.
 - O plugin mantem historico de vulnerabilidades, entao a tabela pode crescer com o tempo.
 - A criacao de tickets tenta reaproveitar tickets existentes, salvo quando o usuario forca ticket novo.
 - Os direitos `plugin_nessusglpi_ticket` existem, mas o fluxo atual de criacao de ticket usa principalmente UPDATE em vulnerabilidades/hosts.
+- Os geradores de conteudo de ticket tem testes automatizados em `tests/` (rode com `php tests/run.php`, ou via PHPUnit com `phpunit.xml.dist`).
 
 ## 18. Checklist rapido
 
@@ -840,7 +894,7 @@ Para colocar em funcionamento:
 [ ] Test connection correto OK
 [ ] Origem correta selecionada no scan
 [ ] Scan ID/UUID cadastrado
-[ ] Tela de scans aberta para processar fila
+[ ] Fila processando (cron 'queue' ativo apos atualizar p/ 1.3.0, ou tela de scans aberta)
 [ ] Status success
 [ ] Vulnerabilidades visiveis
 [ ] Hosts conferidos

@@ -148,6 +148,8 @@ class SyncService
                 'last_sync_status' => 'success',
             ]);
 
+            $this->autoResolveClearedTickets($scanId);
+
             return (int) $runId;
         } catch (Throwable $e) {
             $finishedAt = date('Y-m-d H:i:s');
@@ -264,7 +266,22 @@ class SyncService
             'last_sync_status' => 'success',
         ]);
 
+        $this->autoResolveClearedTickets($scanId);
+
         return $runId;
+    }
+
+    /**
+     * Resolves tickets whose vulnerabilities cleared in this sync. Never lets a resolution
+     * error fail the synchronization itself.
+     */
+    private function autoResolveClearedTickets(int $scanId): void
+    {
+        try {
+            (new TicketService())->autoResolveClearedVulnerabilities($scanId);
+        } catch (Throwable $e) {
+            // Auto-resolution is best-effort; a failure must not abort a successful sync.
+        }
     }
 
     private function extractWasScanExecutedAt(array $scanDetails): ?string

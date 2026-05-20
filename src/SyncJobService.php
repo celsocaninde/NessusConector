@@ -114,6 +114,12 @@ class SyncJobService
                 'message'     => sprintf(__('Synchronization completed. Run #%d created.', 'nessusglpi'), $runId),
             ]);
 
+            AuditLog::info('sync', sprintf('Scan #%d synchronized (run #%d).', $scanId, $runId), [
+                'job_id'  => $jobId,
+                'scan_id' => $scanId,
+                'run_id'  => $runId,
+            ]);
+
             return [
                 'job_id'     => $jobId,
                 'scan_id'    => $scanId,
@@ -128,6 +134,11 @@ class SyncJobService
                 'status'      => 'error',
                 'finished_at' => $finishedAt,
                 'message'     => $e->getMessage(),
+            ]);
+
+            AuditLog::error('sync', sprintf('Scan #%d synchronization failed: %s', $scanId, $e->getMessage()), [
+                'job_id'  => $jobId,
+                'scan_id' => $scanId,
             ]);
 
             return [
