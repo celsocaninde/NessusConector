@@ -112,12 +112,10 @@ class NessusClient
             $body = curl_exec($ch);
             if ($body === false) {
                 $error = curl_error($ch);
-                curl_close($ch);
                 throw new RuntimeException($this->humanizeCurlError($error));
             }
 
             $statusCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
         } catch (Throwable $e) {
             throw new RuntimeException($this->humanizeRuntimeError($e->getMessage()), 0, $e);
         } finally {

@@ -16,15 +16,18 @@ class TicketService
             throw new RuntimeException(__('Vulnerability not found.', 'nessusglpi'));
         }
 
+        $host = $this->loadHost((int) ($vulnerability->fields['plugin_nessusglpi_hosts_id'] ?? 0));
+
         if (!$forceNew) {
-            $existingTicketId = $this->findExistingVulnerabilityTicket($vulnerability->fields);
+            $existingTicketId = $this->findExistingVulnerabilityTicket($vulnerability->fields, $host?->fields ?? null);
             if ($existingTicketId !== null) {
                 $this->ensureCurrentVulnerabilityLink($vulnerabilityId, $existingTicketId);
+                $this->linkTicketToAsset($existingTicketId, (string) ($vulnerability->fields['itemtype'] ?? ''), (int) ($vulnerability->fields['items_id'] ?? 0));
+                TicketMemory::rememberVulnerabilityTicket($vulnerability->fields, $host?->fields ?? null, $existingTicketId);
                 return $existingTicketId;
             }
         }
 
-        $host = $this->loadHost((int) ($vulnerability->fields['plugin_nessusglpi_hosts_id'] ?? 0));
         $scan = $this->loadScan((int) ($vulnerability->fields['plugin_nessusglpi_scans_id'] ?? 0));
         $pluginDetails = $this->loadPluginDetails($vulnerability->fields, $host?->fields ?? null, $scan?->fields ?? null);
 
@@ -52,6 +55,7 @@ class TicketService
 
         $this->linkTicketToAsset($ticketId, (string) ($vulnerability->fields['itemtype'] ?? ''), (int) ($vulnerability->fields['items_id'] ?? 0));
         $this->ensureCurrentVulnerabilityLink($vulnerabilityId, $ticketId);
+        TicketMemory::rememberVulnerabilityTicket($vulnerability->fields, $host?->fields ?? null, $ticketId);
 
         return (int) $ticketId;
     }
@@ -145,8 +149,10 @@ class TicketService
             $existingTicketId = $this->findExistingGroupedVulnerabilityTicket($groupRows);
             if ($existingTicketId !== null) {
                 foreach ($groupRows as $row) {
+                    $host = $this->loadHost((int) ($row['plugin_nessusglpi_hosts_id'] ?? 0));
                     $this->ensureCurrentVulnerabilityLink((int) ($row['id'] ?? 0), $existingTicketId);
                     $this->linkTicketToAsset($existingTicketId, (string) ($row['itemtype'] ?? ''), (int) ($row['items_id'] ?? 0));
+                    TicketMemory::rememberVulnerabilityTicket($row, $host?->fields ?? null, $existingTicketId);
                 }
 
                 return $existingTicketId;
@@ -177,8 +183,10 @@ class TicketService
         }
 
         foreach ($groupRows as $row) {
+            $host = $this->loadHost((int) ($row['plugin_nessusglpi_hosts_id'] ?? 0));
             $this->linkTicketToAsset($ticketId, (string) ($row['itemtype'] ?? ''), (int) ($row['items_id'] ?? 0));
             $this->ensureCurrentVulnerabilityLink((int) ($row['id'] ?? 0), $ticketId);
+            TicketMemory::rememberVulnerabilityTicket($row, $host?->fields ?? null, $ticketId);
         }
 
         return (int) $ticketId;
@@ -223,41 +231,47 @@ class TicketService
         }
     }
 
-    private function findExistingVulnerabilityTicket(array $vulnerabilityFields): ?int
+    private function findExistingVulnerabilityTicket(array $vulnerabilityFields, ?array $hostFields): ?int
     {
         global $DB;
 
         $equivalentIds = Vulnerability::getEquivalentVulnerabilityIds($vulnerabilityFields);
-        if ($equivalentIds === []) {
-            return null;
-        }
+        if ($equivalentIds !== []) {
+            $iterator = $DB->request([
+                'FROM'  => VulnerabilityTicket::getTable(),
+                'WHERE' => [
+                    'plugin_nessusglpi_vulnerabilities_id' => $equivalentIds,
+                ],
+                'ORDER' => ['id DESC'],
+            ]);
 
-        $iterator = $DB->request([
-            'FROM'  => VulnerabilityTicket::getTable(),
-            'WHERE' => [
-                'plugin_nessusglpi_vulnerabilities_id' => $equivalentIds,
-            ],
-            'ORDER' => ['id DESC'],
-        ]);
+            foreach ($iterator as $row) {
+                $ticketId = (int) ($row['tickets_id'] ?? 0);
+                if ($ticketId <= 0) {
+                    continue;
+                }
 
-        foreach ($iterator as $row) {
-            $ticketId = (int) ($row['tickets_id'] ?? 0);
-            if ($ticketId <= 0) {
-                continue;
-            }
-
-            if ($this->isTicketUsable($ticketId)) {
-                return $ticketId;
+                if ($this->isTicketUsable($ticketId)) {
+                    return $ticketId;
+                }
             }
         }
 
-        return null;
+        return TicketMemory::findVulnerabilityTicketId($vulnerabilityFields, $hostFields);
     }
 
     private function findExistingGroupedVulnerabilityTicket(array $groupRows): ?int
     {
         foreach ($groupRows as $row) {
             $ticketId = $this->findTicketLinkedDirectlyToVulnerability((int) ($row['id'] ?? 0));
+            if ($ticketId !== null) {
+                return $ticketId;
+            }
+        }
+
+        foreach ($groupRows as $row) {
+            $host = $this->loadHost((int) ($row['plugin_nessusglpi_hosts_id'] ?? 0));
+            $ticketId = TicketMemory::findVulnerabilityTicketId($row, $host?->fields ?? null);
             if ($ticketId !== null) {
                 return $ticketId;
             }
@@ -476,65 +490,31 @@ class TicketService
     private function buildVulnerabilityContent(array $fields, ?array $hostFields, ?array $scanFields, ?array $pluginDetails): string
     {
         $hostLabel = $this->buildHostLabel($hostFields);
-        $overview = [
+        $scanId = trim((string) ($scanFields['scan_id'] ?? ''));
+        $detailUrl = $this->buildVulnerabilityDetailsUrl((int) ($fields['id'] ?? 0));
+
+        $lines = [
             __('Vulnerability imported from Nessus.', 'nessusglpi'),
             '',
             __('Name', 'nessusglpi') . ': ' . (string) ($fields['plugin_name'] ?? ''),
             __('Severity', 'nessusglpi') . ': ' . $this->normalizeSeverityLabel((string) ($fields['severity_label'] ?? ''), (int) ($fields['severity'] ?? 0)),
-            'Plugin ID: ' . (string) ($fields['plugin_id_nessus'] ?? ''),
-            'Scan ID: ' . (string) ($scanFields['scan_id'] ?? ''),
-            'Host: ' . $hostLabel,
-            __('Last seen', 'nessusglpi') . ': ' . (string) ($fields['last_seen_at'] ?? ''),
-            '',
+            __('Plugin ID', 'nessusglpi') . ': ' . (string) ($fields['plugin_id_nessus'] ?? ''),
         ];
 
-        $sections = [
-            __('Overview', 'nessusglpi') => [
-                'CVE' => $pluginDetails['cve'] ?? $fields['cve'] ?? '',
-                __('Port', 'nessusglpi') => $pluginDetails['port'] ?? $fields['port'] ?? '',
-                __('Protocol', 'nessusglpi') => $pluginDetails['protocol'] ?? $fields['protocol'] ?? '',
-                __('Synopsis', 'nessusglpi') => $pluginDetails['synopsis'] ?? $fields['synopsis'] ?? '',
-                __('Description') => $pluginDetails['description'] ?? $fields['description'] ?? '',
-                __('Solution') => $pluginDetails['solution'] ?? $fields['solution'] ?? '',
-                __('Plugin output', 'nessusglpi') => $pluginDetails['plugin_output'] ?? $fields['plugin_output'] ?? '',
-            ],
-        ];
-
-        if (is_array($pluginDetails)) {
-            if (!empty($pluginDetails['_load_error'])) {
-                $sections[__('Nessus detail error', 'nessusglpi')] = [
-                    __('Message') => (string) $pluginDetails['_load_error'],
-                ];
-            }
-
-            foreach ([
-                __('Plugin attributes', 'nessusglpi') => $pluginDetails['plugin_attributes'] ?? null,
-                __('Plugin information', 'nessusglpi') => $pluginDetails['plugin_information'] ?? null,
-                __('Risk information', 'nessusglpi') => $pluginDetails['risk_information'] ?? null,
-                'VPR' => $pluginDetails['vpr'] ?? null,
-                __('Outputs', 'nessusglpi') => $pluginDetails['outputs'] ?? null,
-            ] as $title => $data) {
-                if ($data !== null) {
-                    $sections[(string) $title] = $data;
-                }
-            }
+        if ($scanId !== '') {
+            $lines[] = __('Scan ID', 'nessusglpi') . ': ' . $scanId;
         }
 
-        $lines = $overview;
-        foreach ($sections as $title => $data) {
-            $lines[] = '=== ' . $title . ' ===';
-            foreach ($this->flattenSection($data) as $line) {
-                $lines[] = $line;
-            }
-            $lines[] = '';
-        }
+        $lines[] = __('Host', 'nessusglpi') . ': ' . $hostLabel;
+        $lines[] = '';
+        $lines[] = '=== ' . __('Details', 'nessusglpi') . ' ===';
+        $lines[] = sprintf(__('More information for host %s', 'nessusglpi'), $hostLabel) . ' - ' . $detailUrl;
 
         return trim(implode("\n", $lines));
     }
 
     private function buildGroupedVulnerabilityContent(array $fields, array $groupRows, ?array $pluginDetails): string
     {
-        $targets = $this->collectAffectedTargets($groupRows);
         $scanIds = [];
         foreach ($groupRows as $row) {
             $scanId = (int) ($row['plugin_nessusglpi_scans_id'] ?? 0);
@@ -554,57 +534,24 @@ class TicketService
             '',
             __('Name', 'nessusglpi') . ': ' . (string) ($fields['plugin_name'] ?? ''),
             __('Severity', 'nessusglpi') . ': ' . $this->normalizeSeverityLabel((string) ($fields['severity_label'] ?? ''), (int) ($fields['severity'] ?? 0)),
-            'Plugin ID: ' . (string) ($fields['plugin_id_nessus'] ?? ''),
+            __('Plugin ID', 'nessusglpi') . ': ' . (string) ($fields['plugin_id_nessus'] ?? ''),
         ];
 
         if ($scanIds !== []) {
-            $lines[] = 'Scan IDs: ' . implode(', ', array_values(array_unique($scanIds)));
+            $lines[] = __('Scan IDs', 'nessusglpi') . ': ' . implode(', ', array_values(array_unique($scanIds)));
         }
 
         $lines[] = '';
         $lines[] = '=== ' . __('Affected assets', 'nessusglpi') . ' ===';
-        foreach ($targets as $target) {
-            $lines[] = '- ' . $target['label'];
+        foreach ($this->collectAffectedHostLabels($groupRows) as $label) {
+            $lines[] = '- ' . $label;
         }
+
         $lines[] = '';
-        $lines[] = '=== ' . __('Overview', 'nessusglpi') . ' ===';
-
-        foreach ($this->flattenSection([
-            'CVE' => $pluginDetails['cve'] ?? $fields['cve'] ?? '',
-            __('Port', 'nessusglpi') => $pluginDetails['port'] ?? $fields['port'] ?? '',
-            __('Protocol', 'nessusglpi') => $pluginDetails['protocol'] ?? $fields['protocol'] ?? '',
-            __('Synopsis', 'nessusglpi') => $pluginDetails['synopsis'] ?? $fields['synopsis'] ?? '',
-            __('Description') => $pluginDetails['description'] ?? $fields['description'] ?? '',
-            __('Solution') => $pluginDetails['solution'] ?? $fields['solution'] ?? '',
-            __('Plugin output', 'nessusglpi') => $pluginDetails['plugin_output'] ?? $fields['plugin_output'] ?? '',
-        ]) as $line) {
-            $lines[] = $line;
-        }
-
-        if (is_array($pluginDetails)) {
-            foreach ([
-                __('Plugin attributes', 'nessusglpi') => $pluginDetails['plugin_attributes'] ?? null,
-                __('Plugin information', 'nessusglpi') => $pluginDetails['plugin_information'] ?? null,
-                __('Risk information', 'nessusglpi') => $pluginDetails['risk_information'] ?? null,
-                'VPR' => $pluginDetails['vpr'] ?? null,
-                __('Outputs', 'nessusglpi') => $pluginDetails['outputs'] ?? null,
-            ] as $title => $data) {
-                if ($data === null) {
-                    continue;
-                }
-
-                $lines[] = '';
-                $lines[] = '=== ' . $title . ' ===';
-                foreach ($this->flattenSection($data) as $line) {
-                    $lines[] = $line;
-                }
-            }
-
-            if (!empty($pluginDetails['_load_error'])) {
-                $lines[] = '';
-                $lines[] = '=== ' . __('Nessus detail error', 'nessusglpi') . ' ===';
-                $lines[] = __('Message') . ': ' . (string) $pluginDetails['_load_error'];
-            }
+        $lines[] = '=== ' . __('Details', 'nessusglpi') . ' ===';
+        foreach ($this->buildGroupedDetailLines($groupRows) as $detailLine) {
+            $lines[] = $detailLine;
+            $lines[] = '';
         }
 
         return trim(implode("\n", $lines));
@@ -647,6 +594,50 @@ class TicketService
         }
 
         return __('Unknown host', 'nessusglpi');
+    }
+
+    private function buildVulnerabilityDetailsUrl(int $vulnerabilityId): string
+    {
+        global $CFG_GLPI;
+
+        $path = '/plugins/nessusglpi/front/vulnerability.form.php?id=' . $vulnerabilityId;
+        $urlBase = rtrim((string) ($CFG_GLPI['url_base'] ?? ''), '/');
+        if ($urlBase !== '') {
+            return $urlBase . $path;
+        }
+
+        $rootDoc = rtrim((string) ($CFG_GLPI['root_doc'] ?? ''), '/');
+        return $rootDoc . $path;
+    }
+
+    private function collectAffectedHostLabels(array $groupRows): array
+    {
+        $labels = [];
+
+        foreach ($groupRows as $row) {
+            $host = $this->loadHost((int) ($row['plugin_nessusglpi_hosts_id'] ?? 0));
+            $label = $host !== null ? $this->buildHostLabel($host->fields) : $this->buildAffectedTargetLabel($row);
+            if ($label === '') {
+                continue;
+            }
+
+            $labels[$label] = $label;
+        }
+
+        return array_values($labels);
+    }
+
+    private function buildGroupedDetailLines(array $groupRows): array
+    {
+        $lines = [];
+
+        foreach ($groupRows as $row) {
+            $host = $this->loadHost((int) ($row['plugin_nessusglpi_hosts_id'] ?? 0));
+            $label = $host !== null ? $this->buildHostLabel($host->fields) : $this->buildAffectedTargetLabel($row);
+            $lines[] = sprintf(__('More information for host %s', 'nessusglpi'), $label) . ' - ' . $this->buildVulnerabilityDetailsUrl((int) ($row['id'] ?? 0));
+        }
+
+        return $lines;
     }
 
     private function collectAffectedTargets(array $groupRows): array
@@ -771,3 +762,7 @@ class TicketService
         return $lines;
     }
 }
+
+
+
+

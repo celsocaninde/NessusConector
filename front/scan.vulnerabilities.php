@@ -88,44 +88,7 @@ function nessusglpi_render_dashboard(array $counts): string
 
 function nessusglpi_ticket_for_vulnerability(array $vulnerabilityRow): ?array
 {
-    global $DB;
-
-    $equivalentIds = Vulnerability::getEquivalentVulnerabilityIds($vulnerabilityRow);
-    if ($equivalentIds === []) {
-        return null;
-    }
-
-    $iterator = $DB->request([
-        'FROM'  => GlpiPlugin\Nessusglpi\VulnerabilityTicket::getTable(),
-        'WHERE' => [
-            'plugin_nessusglpi_vulnerabilities_id' => $equivalentIds,
-        ],
-        'ORDER' => ['id DESC'],
-    ]);
-
-    foreach ($iterator as $link) {
-        $ticketId = (int) ($link['tickets_id'] ?? 0);
-        if ($ticketId <= 0) {
-            continue;
-        }
-
-        $ticket = new Ticket();
-        if (!$ticket->getFromDB($ticketId)) {
-            continue;
-        }
-
-        if ((int) ($ticket->fields['is_deleted'] ?? 0) !== 0) {
-            continue;
-        }
-
-        return [
-            'id'   => (int) $ticket->fields['id'],
-            'name' => (string) ($ticket->fields['name'] ?? ''),
-            'link' => $ticket->getLinkURL(),
-        ];
-    }
-
-    return null;
+    return Vulnerability::getLinkedTicketData($vulnerabilityRow);
 }
 
 function nessusglpi_host_label(array $hostRow): string

@@ -104,6 +104,13 @@ def main():
         'Overview': 'Visao geral',
         'Outputs': 'Saidas',
         'Affected assets': 'Ativos afetados',
+        'Details': 'Detalhes',
+        'Host': 'Host',
+        'Plugin ID': 'Plugin ID',
+        'Scan ID': 'Scan ID',
+        'Scan IDs': 'Scan IDs',
+        'More information for host %s': 'Maiores informacoes do host %s',
+        'Vulnerability imported from Nessus.': 'Vulnerabilidade importada do Nessus.',
         'Multiple assets (%d)': 'Multiplos ativos (%d)',
         'No vulnerabilities were selected.': 'Nenhuma vulnerabilidade foi selecionada.',
         'Ticket creation completed for %d grouped vulnerability group(s).': 'Criacao de chamados concluida para %d grupo(s) de vulnerabilidade.',
@@ -142,6 +149,13 @@ def main():
         'Overview': 'Vue d ensemble',
         'Outputs': 'Sorties',
         'Affected assets': 'Actifs affectes',
+        'Details': 'Details',
+        'Host': 'Hote',
+        'Plugin ID': 'ID du plugin',
+        'Scan ID': 'ID du scan',
+        'Scan IDs': 'IDs des scans',
+        'More information for host %s': 'Plus d informations pour l hote %s',
+        'Vulnerability imported from Nessus.': 'Vulnerabilite importee depuis Nessus.',
         'Multiple assets (%d)': 'Actifs multiples (%d)',
         'No vulnerabilities were selected.': 'Aucune vulnerabilite n a ete selectionnee.',
         'Ticket creation completed for %d grouped vulnerability group(s).': 'Creation terminee pour %d groupe(s) de vulnerabilites.',
@@ -162,4 +176,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
