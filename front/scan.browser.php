@@ -29,12 +29,38 @@ function nessusglpi_browser_first_string(array $data, array $paths): string
 {
     foreach ($paths as $path) {
         $value = nessusglpi_browser_nested_value($data, $path);
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
         if (is_scalar($value) && trim((string) $value) !== '') {
             return trim((string) $value);
         }
     }
 
     return '';
+}
+
+function nessusglpi_browser_first_bool(array $data, array $paths): ?bool
+{
+    foreach ($paths as $path) {
+        $value = nessusglpi_browser_nested_value($data, $path);
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (!is_scalar($value)) {
+            continue;
+        }
+
+        $normalized = strtolower(trim((string) $value));
+        if (in_array($normalized, ['1', 'true', 'yes', 'enabled', 'active'], true)) {
+            return true;
+        }
+        if (in_array($normalized, ['0', 'false', 'no', 'disabled', 'inactive'], true)) {
+            return false;
+        }
+    }
+
+    return null;
 }
 
 function nessusglpi_browser_pretty_date(string $value): string
@@ -169,12 +195,37 @@ function nessusglpi_browser_target(array $row): string
 
 function nessusglpi_browser_status(array $row): string
 {
-    return nessusglpi_browser_first_string($row, [
+    $status = nessusglpi_browser_first_string($row, [
         ['status'],
         ['state'],
         ['scan_status'],
-        ['enabled'],
+        ['scan', 'status'],
+        ['last_scan', 'status'],
+        ['latest_scan', 'status'],
     ]);
+    if ($status !== '') {
+        return $status;
+    }
+
+    $enabled = nessusglpi_browser_first_bool($row, [
+        ['enabled'],
+        ['is_enabled'],
+        ['schedule', 'enabled'],
+        ['settings', 'enabled'],
+    ]);
+    if ($enabled !== null) {
+        return $enabled ? 'enabled' : 'disabled';
+    }
+
+    $disabled = nessusglpi_browser_first_bool($row, [
+        ['disabled'],
+        ['is_disabled'],
+    ]);
+    if ($disabled !== null) {
+        return $disabled ? 'disabled' : 'enabled';
+    }
+
+    return '';
 }
 
 function nessusglpi_browser_date(array $row): string
@@ -287,6 +338,7 @@ function nessusglpi_browser_render_card(array $row, string $source, string $cont
     $rawStatus = nessusglpi_browser_status($row);
     $statusBucket = nessusglpi_browser_status_bucket($rawStatus);
     $statusLabel = nessusglpi_browser_status_label($rawStatus);
+    $showStatus = !$isWasConfig || $rawStatus !== '';
     $prettyDate = $isWasConfig ? '' : nessusglpi_browser_date($row);
     $rawDate = $isWasConfig ? '' : nessusglpi_browser_raw_date($row);
     $relativeDate = $isWasConfig ? '' : nessusglpi_browser_relative_date($rawDate);
@@ -311,9 +363,11 @@ function nessusglpi_browser_render_card(array $row, string $source, string $cont
 
     echo '<div class="nessus-scan-card__header">';
     echo '<h3 class="nessus-scan-card__title">' . Html::cleanInputText($displayName) . '</h3>';
-    echo '<span class="nessus-status nessus-status--' . Html::cleanInputText($statusBucket) . '" title="' . Html::cleanInputText($rawStatus !== '' ? $rawStatus : __('No status reported', 'nessusglpi')) . '">'
-        . Html::cleanInputText($statusLabel)
-        . '</span>';
+    if ($showStatus) {
+        echo '<span class="nessus-status nessus-status--' . Html::cleanInputText($statusBucket) . '" title="' . Html::cleanInputText($rawStatus !== '' ? $rawStatus : __('No status reported', 'nessusglpi')) . '">'
+            . Html::cleanInputText($statusLabel)
+            . '</span>';
+    }
     echo '</div>';
 
     if ($displayTarget !== '') {
@@ -366,41 +420,47 @@ function nessusglpi_browser_render_grid(array $items, string $source, string $co
     echo '<section data-nessus-browser class="nessus-browser">';
 
     $statusCounts = [];
+    $totalItems = 0;
     foreach ($items as $item) {
         if (!is_array($item)) {
             continue;
         }
-        $bucket = nessusglpi_browser_status_bucket(nessusglpi_browser_status($item));
+        $totalItems++;
+        $rawStatus = nessusglpi_browser_status($item);
+        if ($context === 'was_config' && $rawStatus === '') {
+            continue;
+        }
+        $bucket = nessusglpi_browser_status_bucket($rawStatus);
         $statusCounts[$bucket] = ($statusCounts[$bucket] ?? 0) + 1;
     }
-    $totalItems = array_sum($statusCounts);
 
     echo '<div class="nessus-browser__toolbar">';
     echo '<label class="nessus-browser__search">';
-    echo '<span class="nessus-browser__search-icon">' . nessusglpi_browser_icon_search() . '</span>';
     echo '<input type="search" data-nessus-search autocomplete="off" spellcheck="false" placeholder="' . Html::cleanInputText(__('Search by name, target or ID…', 'nessusglpi')) . '">';
     echo '</label>';
 
-    echo '<select class="nessus-browser__status-filter" data-nessus-status-filter aria-label="' . Html::cleanInputText(__('Filter by status', 'nessusglpi')) . '">';
-    echo '<option value="all">' . Html::cleanInputText(__('All statuses', 'nessusglpi')) . '</option>';
-    $statusOptions = [
-        'success' => __('Completed', 'nessusglpi'),
-        'running' => __('Running', 'nessusglpi'),
-        'warning' => __('Stopped / disabled', 'nessusglpi'),
-        'danger'  => __('Failed', 'nessusglpi'),
-        'muted'   => __('Empty / draft', 'nessusglpi'),
-        'unknown' => __('Unknown', 'nessusglpi'),
-    ];
-    foreach ($statusOptions as $bucket => $label) {
-        $count = $statusCounts[$bucket] ?? 0;
-        if ($count === 0) {
-            continue;
+    if ($statusCounts !== []) {
+        echo '<select class="nessus-browser__status-filter" data-nessus-status-filter aria-label="' . Html::cleanInputText(__('Filter by status', 'nessusglpi')) . '">';
+        echo '<option value="all">' . Html::cleanInputText(__('All statuses', 'nessusglpi')) . '</option>';
+        $statusOptions = [
+            'success' => __('Completed', 'nessusglpi'),
+            'running' => __('Running', 'nessusglpi'),
+            'warning' => __('Stopped / disabled', 'nessusglpi'),
+            'danger'  => __('Failed', 'nessusglpi'),
+            'muted'   => __('Empty / draft', 'nessusglpi'),
+            'unknown' => __('Unknown', 'nessusglpi'),
+        ];
+        foreach ($statusOptions as $bucket => $label) {
+            $count = $statusCounts[$bucket] ?? 0;
+            if ($count === 0) {
+                continue;
+            }
+            echo '<option value="' . Html::cleanInputText($bucket) . '">'
+                . Html::cleanInputText($label) . ' (' . (int) $count . ')'
+                . '</option>';
         }
-        echo '<option value="' . Html::cleanInputText($bucket) . '">'
-            . Html::cleanInputText($label) . ' (' . (int) $count . ')'
-            . '</option>';
+        echo '</select>';
     }
-    echo '</select>';
 
     echo '<button type="button" class="nessus-browser__clear" data-nessus-clear hidden>' . Html::cleanInputText(__('Clear filters', 'nessusglpi')) . '</button>';
     echo '<span class="nessus-browser__meta">'
@@ -453,8 +513,11 @@ Html::header(__('Browse Tenable scans', 'nessusglpi'), $_SERVER['PHP_SELF'], 'pl
 global $CFG_GLPI;
 $assetsBase = ($CFG_GLPI['root_doc'] ?? '') . '/plugins/nessusglpi';
 $assetVersion = defined('PLUGIN_NESSUSGLPI_VERSION') ? PLUGIN_NESSUSGLPI_VERSION : '1';
+$assetDir = __DIR__ . '/../public';
+$cssVersion = $assetVersion . '-' . (@filemtime($assetDir . '/css/scan-browser.css') ?: '0');
+$jsVersion = $assetVersion . '-' . (@filemtime($assetDir . '/js/scan-browser.js') ?: '0');
 
-echo '<link rel="stylesheet" href="' . Html::cleanInputText($assetsBase . '/css/scan-browser.css?v=' . $assetVersion) . '">';
+echo '<link rel="stylesheet" href="' . Html::cleanInputText($assetsBase . '/css/scan-browser.css?v=' . $cssVersion) . '">';
 
 echo '<div class="card card-body">';
 
@@ -496,6 +559,6 @@ if ($error !== null) {
 
 echo '</div>';
 
-echo '<script src="' . Html::cleanInputText($assetsBase . '/js/scan-browser.js?v=' . $assetVersion) . '" defer></script>';
+echo '<script src="' . Html::cleanInputText($assetsBase . '/js/scan-browser.js?v=' . $jsVersion) . '" defer></script>';
 
 Html::footer();

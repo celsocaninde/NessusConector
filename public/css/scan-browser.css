@@ -102,20 +102,9 @@
     max-width: 360px;
 }
 
-.nessus-browser__search-icon {
-    position: absolute;
-    top: 50%;
-    left: 11px;
-    width: 16px;
-    height: 16px;
-    transform: translateY(-50%);
-    color: var(--nessus-muted);
-    pointer-events: none;
-}
-
 .nessus-browser__search input {
     width: 100%;
-    padding: 0.5rem 0.75rem 0.5rem 2.05rem;
+    padding: 0.5rem 0.75rem;
     border-radius: var(--nessus-radius-sm);
     border: 1px solid var(--nessus-border);
     background: var(--nessus-surface);
