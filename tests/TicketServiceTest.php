@@ -120,6 +120,64 @@ class TicketServiceTest extends TestCase
         $this->assertStringContainsString('CRITICAL', $html);
     }
 
+    public function testBuildVulnerabilityContentIncludesRawNessusDetails(): void
+    {
+        $GLOBALS['CFG_GLPI'] = ['root_doc' => '/glpi'];
+
+        $html = $this->invoke('buildVulnerabilityContent', [
+            [
+                'id'               => 88,
+                'severity'         => 4,
+                'severity_label'   => 'Critical',
+                'plugin_id_nessus' => '12345',
+            ],
+            ['fqdn' => 'web01.local'],
+            ['scan_id' => '42', 'name' => 'Weekly scan'],
+            [
+                'info' => [
+                    'plugindescription' => [
+                        'pluginid' => '12345',
+                        'pluginname' => 'Raw Nessus detail',
+                        'pluginattributes' => [
+                            'synopsis' => 'Raw synopsis',
+                            'description' => 'Raw description',
+                            'solution' => 'Raw solution',
+                            'see_also' => ['https://example.test/advisory'],
+                            'vpr_score' => '9.7',
+                            'risk_information' => [
+                                'cvss3_base_score' => '9.8',
+                                'risk_factor' => 'Critical',
+                            ],
+                            'ref_information' => [
+                                'ref' => [
+                                    [
+                                        'name' => 'cve',
+                                        'values' => [
+                                            'value' => ['CVE-2026-1234'],
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+                'outputs' => [
+                    ['plugin_output' => 'Raw plugin output'],
+                ],
+            ],
+        ]);
+
+        $this->assertStringContainsString('/glpi/plugins/nessusglpi/front/vulnerability.form.php?id=88', $html);
+        $this->assertStringContainsString('Raw synopsis', $html);
+        $this->assertStringContainsString('Raw description', $html);
+        $this->assertStringContainsString('Raw solution', $html);
+        $this->assertStringContainsString('https://example.test/advisory', $html);
+        $this->assertStringContainsString('https://nvd.nist.gov/vuln/detail/CVE-2026-1234', $html);
+        $this->assertStringContainsString('Raw plugin output', $html);
+        $this->assertStringContainsString('9.8', $html);
+        $this->assertStringContainsString('9.7', $html);
+    }
+
     public function testBuildResolutionContentMentionsClearedVulnerability(): void
     {
         $html = $this->invoke('buildResolutionContent', []);

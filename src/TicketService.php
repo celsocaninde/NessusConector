@@ -734,6 +734,98 @@ class TicketService
         }
     }
 
+    private function normalizePluginDetails(?array $pluginDetails): array
+    {
+        $pluginDetails = is_array($pluginDetails) ? $pluginDetails : [];
+        $info = is_array($pluginDetails['info'] ?? null) ? $pluginDetails['info'] : [];
+        $pluginDescription = is_array($info['plugindescription'] ?? null) ? $info['plugindescription'] : [];
+        $pluginAttributes = is_array($pluginDescription['pluginattributes'] ?? null) ? $pluginDescription['pluginattributes'] : [];
+
+        $riskInformation = is_array($pluginAttributes['risk_information'] ?? null)
+            ? $pluginAttributes['risk_information']
+            : (is_array($pluginDetails['risk_information'] ?? null) ? $pluginDetails['risk_information'] : []);
+        $pluginInformation = is_array($pluginAttributes['plugin_information'] ?? null)
+            ? $pluginAttributes['plugin_information']
+            : (is_array($pluginDetails['plugin_information'] ?? null) ? $pluginDetails['plugin_information'] : []);
+        $vulnInformation = is_array($pluginAttributes['vuln_information'] ?? null)
+            ? $pluginAttributes['vuln_information']
+            : (is_array($pluginDetails['vuln_information'] ?? null) ? $pluginDetails['vuln_information'] : []);
+        $refInformation = is_array($pluginAttributes['ref_information'] ?? null)
+            ? $pluginAttributes['ref_information']
+            : (is_array($pluginDetails['ref_information'] ?? null) ? $pluginDetails['ref_information'] : []);
+        $outputs = is_array($pluginDetails['outputs'] ?? null) ? $pluginDetails['outputs'] : [];
+        $firstOutput = isset($outputs[0]) && is_array($outputs[0]) ? $outputs[0] : [];
+        $cves = $this->extractReferenceValues($refInformation, 'cve');
+
+        return [
+            'plugin_id'                => $this->firstNonEmpty([$pluginDescription['pluginid'] ?? null, $pluginDetails['plugin_id'] ?? null, $pluginDetails['pluginid'] ?? null]),
+            'plugin_name'              => $this->firstNonEmpty([$pluginDescription['pluginname'] ?? null, $pluginDetails['plugin_name'] ?? null, $pluginDetails['pluginname'] ?? null]),
+            'cve'                      => $this->firstNonEmpty([$pluginDetails['cve'] ?? null, implode(', ', $cves)]),
+            'see_also'                 => $this->normalizeStringList($pluginAttributes['see_also'] ?? ($pluginDetails['see_also'] ?? [])),
+            'synopsis'                 => $this->firstNonEmpty([$pluginAttributes['synopsis'] ?? null, $pluginDetails['synopsis'] ?? null]),
+            'description'              => $this->firstNonEmpty([$pluginAttributes['description'] ?? null, $pluginDetails['description'] ?? null]),
+            'solution'                 => $this->firstNonEmpty([$pluginAttributes['solution'] ?? null, $pluginDetails['solution'] ?? null]),
+            'plugin_output'            => $this->firstNonEmpty([$firstOutput['plugin_output'] ?? null, $pluginDetails['plugin_output'] ?? null]),
+            'port'                     => $this->firstNonEmpty([$pluginDetails['port'] ?? null, $firstOutput['port'] ?? null]),
+            'protocol'                 => $this->firstNonEmpty([$pluginDetails['protocol'] ?? null, $firstOutput['protocol'] ?? null]),
+            'vpr_score'                => $this->firstNonEmpty([$pluginAttributes['vpr_score'] ?? null, $pluginDetails['vpr_score'] ?? null, $pluginDetails['vpr'] ?? null]),
+            'risk_information'         => $riskInformation,
+            'plugin_information'       => $pluginInformation,
+            'vuln_information'         => $vulnInformation,
+            'outputs'                  => $outputs,
+            '_load_error'              => (string) ($pluginDetails['_load_error'] ?? ''),
+        ];
+    }
+
+    private function extractReferenceValues(array $refInformation, string $referenceName): array
+    {
+        $items = [];
+        $references = $refInformation['ref'] ?? [];
+        if (is_array($references) && !array_is_list($references)) {
+            $references = [$references];
+        }
+
+        foreach ((array) $references as $reference) {
+            if (!is_array($reference) || strtolower((string) ($reference['name'] ?? '')) !== strtolower($referenceName)) {
+                continue;
+            }
+
+            $values = $reference['values']['value'] ?? [];
+            foreach ($this->normalizeStringList($values) as $value) {
+                $items[$value] = true;
+            }
+        }
+
+        return array_keys($items);
+    }
+
+    private function normalizeStringList($value): array
+    {
+        if (is_string($value)) {
+            $value = preg_split('/[\r\n]+/', $value) ?: [$value];
+        }
+        if (!is_array($value)) {
+            $value = [$value];
+        }
+
+        $items = [];
+        foreach ($value as $item) {
+            if (is_array($item)) {
+                foreach ($this->normalizeStringList($item) as $nested) {
+                    $items[$nested] = true;
+                }
+                continue;
+            }
+
+            $text = trim((string) $item);
+            if ($text !== '') {
+                $items[$text] = true;
+            }
+        }
+
+        return array_keys($items);
+    }
+
     private function findCurrentEquivalentVulnerabilityFields(array $vulnerabilityFields): ?array
     {
         global $DB;
@@ -787,39 +879,41 @@ class TicketService
 
     private function buildDetectionSnapshot(array $fields, ?array $hostFields, ?array $scanFields, ?array $pluginDetails): array
     {
-        $riskInformation = is_array($pluginDetails['risk_information'] ?? null) ? $pluginDetails['risk_information'] : [];
-        $pluginInformation = is_array($pluginDetails['plugin_information'] ?? null) ? $pluginDetails['plugin_information'] : [];
-        $vulnInformation = is_array($pluginDetails['vuln_information'] ?? null) ? $pluginDetails['vuln_information'] : [];
+        $details = $this->normalizePluginDetails($pluginDetails);
+        $riskInformation = $details['risk_information'];
+        $pluginInformation = $details['plugin_information'];
+        $vulnInformation = $details['vuln_information'];
 
         $dbCvss = ((float) ($fields['cvss_base_score'] ?? 0)) > 0 ? (string) $fields['cvss_base_score'] : '';
 
         return [
             'schema'                   => 'nessusglpi-detection-v1',
             'vuln_key'                 => (string) ($fields['vuln_key'] ?? ''),
-            'plugin_id'                => (string) ($fields['plugin_id_nessus'] ?? ''),
-            'plugin_name'              => $this->cleanText((string) ($fields['plugin_name'] ?? '')),
+            'plugin_id'                => $this->firstNonEmpty([$details['plugin_id'], $fields['plugin_id_nessus'] ?? null]),
+            'plugin_name'              => $this->cleanText($this->firstNonEmpty([$details['plugin_name'], $fields['plugin_name'] ?? null])),
             'severity'                 => (int) ($fields['severity'] ?? 0),
             'severity_label'           => $this->normalizeSeverityLabel((string) ($fields['severity_label'] ?? ''), (int) ($fields['severity'] ?? 0)),
             'host'                     => $this->buildHostLabel($hostFields),
             'scan_id'                  => (string) ($scanFields['scan_id'] ?? ''),
             'scan_name'                => $this->cleanText((string) ($scanFields['name'] ?? '')),
-            'port'                     => $this->firstNonEmpty([$pluginDetails['port'] ?? null, $fields['port'] ?? null]),
-            'protocol'                 => $this->firstNonEmpty([$pluginDetails['protocol'] ?? null, $fields['protocol'] ?? null]),
-            'cve'                      => $this->firstNonEmpty([$pluginDetails['cve'] ?? null, $fields['cve'] ?? null]),
-            'synopsis'                 => $this->firstNonEmpty([$pluginDetails['synopsis'] ?? null, $fields['synopsis'] ?? null]),
-            'description'              => $this->firstNonEmpty([$pluginDetails['description'] ?? null, $fields['description'] ?? null]),
-            'solution'                 => $this->firstNonEmpty([$pluginDetails['solution'] ?? null, $fields['solution'] ?? null]),
-            'plugin_output'            => $this->firstNonEmpty([$pluginDetails['plugin_output'] ?? null, $fields['plugin_output'] ?? null]),
+            'port'                     => $this->firstNonEmpty([$details['port'], $fields['port'] ?? null]),
+            'protocol'                 => $this->firstNonEmpty([$details['protocol'], $fields['protocol'] ?? null]),
+            'cve'                      => $this->firstNonEmpty([$details['cve'], $fields['cve'] ?? null]),
+            'see_also'                 => $details['see_also'],
+            'synopsis'                 => $this->firstNonEmpty([$details['synopsis'], $fields['synopsis'] ?? null]),
+            'description'              => $this->firstNonEmpty([$details['description'], $fields['description'] ?? null]),
+            'solution'                 => $this->firstNonEmpty([$details['solution'], $fields['solution'] ?? null]),
+            'plugin_output'            => $this->firstNonEmpty([$details['plugin_output'], $fields['plugin_output'] ?? null]),
             'risk_factor'              => $this->firstNonEmpty([$riskInformation['risk_factor'] ?? null, $fields['risk_factor'] ?? null]),
             'cvss_base_score'          => $this->firstNonEmpty([$riskInformation['cvss_base_score'] ?? null, $dbCvss]),
             'cvss3_base_score'         => $this->firstNonEmpty([$riskInformation['cvss3_base_score'] ?? null]),
-            'vpr_score'                => $this->firstNonEmpty([$pluginDetails['vpr_score'] ?? null, $pluginDetails['vpr'] ?? null]),
+            'vpr_score'                => $details['vpr_score'],
             'exploit_available'        => $this->firstNonEmpty([$vulnInformation['exploit_available'] ?? null]),
             'patch_publication_date'   => $this->firstNonEmpty([$vulnInformation['patch_publication_date'] ?? null]),
             'plugin_publication_date'  => $this->firstNonEmpty([$pluginInformation['plugin_publication_date'] ?? null]),
             'plugin_modification_date' => $this->firstNonEmpty([$pluginInformation['plugin_modification_date'] ?? null]),
             'cpe'                      => $this->firstNonEmpty([$vulnInformation['cpe'] ?? null]),
-            'outputs'                  => is_array($pluginDetails['outputs'] ?? null) ? $pluginDetails['outputs'] : [],
+            'outputs'                  => $details['outputs'],
         ];
     }
 
@@ -836,6 +930,7 @@ class TicketService
         $when = date('Y-m-d H:i:s');
         $portProtocol = $this->joinPortProtocol((string) ($snapshot['port'] ?? ''), (string) ($snapshot['protocol'] ?? ''));
         $name = $this->cleanText((string) ($snapshot['plugin_name'] ?? '')) ?: __('Nessus vulnerability', 'nessusglpi');
+        $detailsUrl = $this->buildVulnerabilityDetailsUrl((int) ($fields['id'] ?? 0));
 
         $html = [];
         $html[] = $this->detectionHashMarker($hash);
@@ -861,6 +956,14 @@ class TicketService
             __('Last seen', 'nessusglpi') => $this->cleanText((string) ($fields['last_seen_at'] ?? '')),
         ]);
 
+        if ($detailsUrl !== '') {
+            $html[] = $this->renderTicketSection(__('GLPI details', 'nessusglpi'), $this->renderTicketLinkCard(
+                $detailsUrl,
+                __('Open vulnerability details', 'nessusglpi'),
+                __('This link opens the same Details view used by the scan list.', 'nessusglpi')
+            ));
+        }
+
         $html[] = $this->renderTicketSection(__('Detection', 'nessusglpi'), $this->renderTicketBlockquote($name));
 
         if ((string) ($snapshot['synopsis'] ?? '') !== '') {
@@ -881,6 +984,11 @@ class TicketService
         $cveList = $this->extractCveList((string) ($snapshot['cve'] ?? ''));
         if ($cveList !== []) {
             $html[] = $this->renderTicketSection(__('Related CVEs', 'nessusglpi'), $this->renderCveList($cveList));
+        }
+
+        $seeAlso = is_array($snapshot['see_also'] ?? null) ? $snapshot['see_also'] : [];
+        if ($seeAlso !== []) {
+            $html[] = $this->renderTicketSection(__('See also', 'nessusglpi'), $this->renderExternalLinkList($seeAlso));
         }
 
         $riskRows = array_filter([
@@ -1428,24 +1536,26 @@ class TicketService
 
     private function buildVulnerabilityContent(array $fields, ?array $hostFields, ?array $scanFields, ?array $pluginDetails): string
     {
+        $details = $this->normalizePluginDetails($pluginDetails);
         $severity = (int) ($fields['severity'] ?? 0);
         $severityLabel = $this->normalizeSeverityLabel((string) ($fields['severity_label'] ?? ''), $severity);
         $severityMeta = $this->severityHtmlMeta($severity, $severityLabel);
 
-        $name = $this->cleanText((string) ($fields['plugin_name'] ?? '')) ?: __('Nessus vulnerability', 'nessusglpi');
+        $name = $this->cleanText($this->firstNonEmpty([$details['plugin_name'], $fields['plugin_name'] ?? null])) ?: __('Nessus vulnerability', 'nessusglpi');
         $hostLabel = $this->buildHostLabel($hostFields);
+        $detailsUrl = $this->buildVulnerabilityDetailsUrl((int) ($fields['id'] ?? 0));
 
-        $cve = $this->firstNonEmpty([$pluginDetails['cve'] ?? null, $fields['cve'] ?? null]);
-        $port = $this->firstNonEmpty([$pluginDetails['port'] ?? null, $fields['port'] ?? null]);
-        $protocol = $this->firstNonEmpty([$pluginDetails['protocol'] ?? null, $fields['protocol'] ?? null]);
-        $synopsis = $this->firstNonEmpty([$pluginDetails['synopsis'] ?? null, $fields['synopsis'] ?? null]);
-        $description = $this->firstNonEmpty([$pluginDetails['description'] ?? null, $fields['description'] ?? null]);
-        $solution = $this->firstNonEmpty([$pluginDetails['solution'] ?? null, $fields['solution'] ?? null]);
-        $pluginOutput = $this->firstNonEmpty([$pluginDetails['plugin_output'] ?? null, $fields['plugin_output'] ?? null]);
+        $cve = $this->firstNonEmpty([$details['cve'], $fields['cve'] ?? null]);
+        $port = $this->firstNonEmpty([$details['port'], $fields['port'] ?? null]);
+        $protocol = $this->firstNonEmpty([$details['protocol'], $fields['protocol'] ?? null]);
+        $synopsis = $this->firstNonEmpty([$details['synopsis'], $fields['synopsis'] ?? null]);
+        $description = $this->firstNonEmpty([$details['description'], $fields['description'] ?? null]);
+        $solution = $this->firstNonEmpty([$details['solution'], $fields['solution'] ?? null]);
+        $pluginOutput = $this->firstNonEmpty([$details['plugin_output'], $fields['plugin_output'] ?? null]);
 
-        $riskInformation = is_array($pluginDetails['risk_information'] ?? null) ? $pluginDetails['risk_information'] : [];
-        $pluginInformation = is_array($pluginDetails['plugin_information'] ?? null) ? $pluginDetails['plugin_information'] : [];
-        $vulnInformation = is_array($pluginDetails['vuln_information'] ?? null) ? $pluginDetails['vuln_information'] : [];
+        $riskInformation = $details['risk_information'];
+        $pluginInformation = $details['plugin_information'];
+        $vulnInformation = $details['vuln_information'];
 
         $html = [];
         $html[] = '<div style="font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif;">';
@@ -1454,12 +1564,20 @@ class TicketService
         $html[] = $this->renderTicketCallout('🎯 ' . __('Target & context', 'nessusglpi'), [
             '🖥️ ' . __('Host', 'nessusglpi')          => $hostLabel,
             '🗂️ ' . __('Scan', 'nessusglpi')          => $this->cleanText((string) ($scanFields['name'] ?? '')),
-            '📌 ' . __('Plugin ID', 'nessusglpi')      => (string) ($fields['plugin_id_nessus'] ?? ''),
+            '📌 ' . __('Plugin ID', 'nessusglpi')      => $this->firstNonEmpty([$details['plugin_id'], $fields['plugin_id_nessus'] ?? null]),
             '🔍 ' . __('Scan ID', 'nessusglpi')        => (string) ($scanFields['scan_id'] ?? ''),
             '🚪 ' . __('Port', 'nessusglpi')           => $this->joinPortProtocol($port, $protocol),
             '📅 ' . __('Last seen', 'nessusglpi')      => $this->cleanText((string) ($fields['last_seen_at'] ?? '')),
             '📅 ' . __('First seen', 'nessusglpi')     => $this->cleanText((string) ($fields['first_seen_at'] ?? '')),
         ]);
+
+        if ($detailsUrl !== '') {
+            $html[] = $this->renderTicketSection('🔎 ' . __('GLPI details', 'nessusglpi'), $this->renderTicketLinkCard(
+                $detailsUrl,
+                __('Open vulnerability details', 'nessusglpi'),
+                __('This is the same Details view available from the scan vulnerability list.', 'nessusglpi')
+            ));
+        }
 
         if ($synopsis !== '') {
             $html[] = $this->renderTicketSection('📄 ' . __('Synopsis', 'nessusglpi'), $this->renderTicketBlockquote($synopsis));
@@ -1481,13 +1599,17 @@ class TicketService
             $html[] = $this->renderTicketSection('🔗 ' . __('Related CVEs', 'nessusglpi'), $this->renderCveList($cveList));
         }
 
+        if ($details['see_also'] !== []) {
+            $html[] = $this->renderTicketSection('🔗 ' . __('See also', 'nessusglpi'), $this->renderExternalLinkList($details['see_also']));
+        }
+
         // Fall back to the values stored in the DB when the live Nessus detail is unavailable.
         $dbCvss = ((float) ($fields['cvss_base_score'] ?? 0)) > 0 ? (string) $fields['cvss_base_score'] : null;
         $riskRows = [
             'CVSS v2'                                    => $this->firstNonEmpty([$riskInformation['cvss_base_score'] ?? null]),
             'CVSS v3'                                    => $this->firstNonEmpty([$riskInformation['cvss3_base_score'] ?? null]),
             'CVSS'                                       => $this->firstNonEmpty([$dbCvss]),
-            'VPR'                                        => $this->firstNonEmpty([$pluginDetails['vpr_score'] ?? null, $pluginDetails['vpr'] ?? null]),
+            'VPR'                                        => $details['vpr_score'],
             __('Risk factor', 'nessusglpi')              => $this->firstNonEmpty([$riskInformation['risk_factor'] ?? null, $fields['risk_factor'] ?? null]),
             __('Exploit available', 'nessusglpi')        => $this->firstNonEmpty([$vulnInformation['exploit_available'] ?? null]),
             __('Patch publication date', 'nessusglpi')   => $this->firstNonEmpty([$vulnInformation['patch_publication_date'] ?? null]),
@@ -1506,8 +1628,8 @@ class TicketService
         }
 
         $portsTable = '';
-        if (is_array($pluginDetails) && isset($pluginDetails['outputs']) && is_array($pluginDetails['outputs'])) {
-            $portsTable = $this->renderPortsTable($pluginDetails['outputs']);
+        if ($details['outputs'] !== []) {
+            $portsTable = $this->renderPortsTable($details['outputs']);
         }
         if ($portsTable === '' && $this->joinPortProtocol($port, $protocol) !== '') {
             $portsTable = $this->renderTicketTable([
@@ -1529,10 +1651,10 @@ class TicketService
             $html[] = $this->renderTicketSection('📚 ' . __('Plugin metadata', 'nessusglpi'), $this->renderTicketTable($pluginMetaFiltered));
         }
 
-        if (is_array($pluginDetails) && !empty($pluginDetails['_load_error'])) {
+        if ($details['_load_error'] !== '') {
             $html[] = $this->renderTicketSection(
                 '⚠️ ' . __('Nessus detail error', 'nessusglpi'),
-                $this->renderTicketHighlight((string) $pluginDetails['_load_error'], '#dc3545')
+                $this->renderTicketHighlight($details['_load_error'], '#dc3545')
             );
         }
 
@@ -1544,11 +1666,12 @@ class TicketService
 
     private function buildGroupedVulnerabilityContent(array $fields, array $groupRows, ?array $pluginDetails): string
     {
+        $details = $this->normalizePluginDetails($pluginDetails);
         $severity = (int) ($fields['severity'] ?? 0);
         $severityLabel = $this->normalizeSeverityLabel((string) ($fields['severity_label'] ?? ''), $severity);
         $severityMeta = $this->severityHtmlMeta($severity, $severityLabel);
 
-        $name = $this->cleanText((string) ($fields['plugin_name'] ?? '')) ?: __('Nessus vulnerability', 'nessusglpi');
+        $name = $this->cleanText($this->firstNonEmpty([$details['plugin_name'], $fields['plugin_name'] ?? null])) ?: __('Nessus vulnerability', 'nessusglpi');
         $targets = $this->collectAffectedTargets($groupRows);
 
         $scanIds = [];
@@ -1566,16 +1689,16 @@ class TicketService
         }
         $scanIds = array_values(array_unique($scanIds));
 
-        $cve = $this->firstNonEmpty([$pluginDetails['cve'] ?? null, $fields['cve'] ?? null]);
-        $port = $this->firstNonEmpty([$pluginDetails['port'] ?? null, $fields['port'] ?? null]);
-        $protocol = $this->firstNonEmpty([$pluginDetails['protocol'] ?? null, $fields['protocol'] ?? null]);
-        $synopsis = $this->firstNonEmpty([$pluginDetails['synopsis'] ?? null, $fields['synopsis'] ?? null]);
-        $description = $this->firstNonEmpty([$pluginDetails['description'] ?? null, $fields['description'] ?? null]);
-        $solution = $this->firstNonEmpty([$pluginDetails['solution'] ?? null, $fields['solution'] ?? null]);
-        $pluginOutput = $this->firstNonEmpty([$pluginDetails['plugin_output'] ?? null, $fields['plugin_output'] ?? null]);
+        $cve = $this->firstNonEmpty([$details['cve'], $fields['cve'] ?? null]);
+        $port = $this->firstNonEmpty([$details['port'], $fields['port'] ?? null]);
+        $protocol = $this->firstNonEmpty([$details['protocol'], $fields['protocol'] ?? null]);
+        $synopsis = $this->firstNonEmpty([$details['synopsis'], $fields['synopsis'] ?? null]);
+        $description = $this->firstNonEmpty([$details['description'], $fields['description'] ?? null]);
+        $solution = $this->firstNonEmpty([$details['solution'], $fields['solution'] ?? null]);
+        $pluginOutput = $this->firstNonEmpty([$details['plugin_output'], $fields['plugin_output'] ?? null]);
 
-        $riskInformation = is_array($pluginDetails['risk_information'] ?? null) ? $pluginDetails['risk_information'] : [];
-        $vulnInformation = is_array($pluginDetails['vuln_information'] ?? null) ? $pluginDetails['vuln_information'] : [];
+        $riskInformation = $details['risk_information'];
+        $vulnInformation = $details['vuln_information'];
 
         $html = [];
         $html[] = '<div style="font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif;">';
@@ -1601,8 +1724,13 @@ class TicketService
             $this->renderTargetList($targets)
         );
 
+        $detailLinks = $this->renderVulnerabilityDetailLinks($groupRows);
+        if ($detailLinks !== '') {
+            $html[] = $this->renderTicketSection('🔎 ' . __('GLPI details', 'nessusglpi'), $detailLinks);
+        }
+
         $html[] = $this->renderTicketCallout('📌 ' . __('Vulnerability metadata', 'nessusglpi'), [
-            __('Plugin ID', 'nessusglpi')       => (string) ($fields['plugin_id_nessus'] ?? ''),
+            __('Plugin ID', 'nessusglpi')       => $this->firstNonEmpty([$details['plugin_id'], $fields['plugin_id_nessus'] ?? null]),
             __('Scan IDs', 'nessusglpi')        => $scanIds === [] ? '' : implode(', ', $scanIds),
             '🚪 ' . __('Port', 'nessusglpi')    => $this->joinPortProtocol($port, $protocol),
         ]);
@@ -1627,11 +1755,16 @@ class TicketService
             $html[] = $this->renderTicketSection('🔗 ' . __('Related CVEs', 'nessusglpi'), $this->renderCveList($cveList));
         }
 
+        if ($details['see_also'] !== []) {
+            $html[] = $this->renderTicketSection('🔗 ' . __('See also', 'nessusglpi'), $this->renderExternalLinkList($details['see_also']));
+        }
+
         $dbCvssGroup = ((float) ($fields['cvss_base_score'] ?? 0)) > 0 ? (string) $fields['cvss_base_score'] : null;
         $riskRows = array_filter([
             'CVSS v2'                                    => $this->firstNonEmpty([$riskInformation['cvss_base_score'] ?? null]),
             'CVSS v3'                                    => $this->firstNonEmpty([$riskInformation['cvss3_base_score'] ?? null]),
             'CVSS'                                       => $this->firstNonEmpty([$dbCvssGroup]),
+            'VPR'                                        => $details['vpr_score'],
             __('Risk factor', 'nessusglpi')              => $this->firstNonEmpty([$riskInformation['risk_factor'] ?? null, $fields['risk_factor'] ?? null]),
             __('Exploit available', 'nessusglpi')        => $this->firstNonEmpty([$vulnInformation['exploit_available'] ?? null]),
         ], static fn ($v) => $v !== '');
@@ -1653,10 +1786,10 @@ class TicketService
             $html[] = $this->renderTicketSection('📤 ' . __('Sample output', 'nessusglpi'), $this->renderTicketCodeBlock($pluginOutput));
         }
 
-        if (is_array($pluginDetails) && !empty($pluginDetails['_load_error'])) {
+        if ($details['_load_error'] !== '') {
             $html[] = $this->renderTicketSection(
                 '⚠️ ' . __('Nessus detail error', 'nessusglpi'),
-                $this->renderTicketHighlight((string) $pluginDetails['_load_error'], '#dc3545')
+                $this->renderTicketHighlight($details['_load_error'], '#dc3545')
             );
         }
 
@@ -1743,6 +1876,10 @@ class TicketService
     private function buildVulnerabilityDetailsUrl(int $vulnerabilityId): string
     {
         global $CFG_GLPI;
+
+        if ($vulnerabilityId <= 0) {
+            return '';
+        }
 
         $path = '/plugins/nessusglpi/front/vulnerability.form.php?id=' . $vulnerabilityId;
         $urlBase = rtrim((string) ($CFG_GLPI['url_base'] ?? ''), '/');
@@ -2055,6 +2192,83 @@ class TicketService
                 . '</a>';
         }
         return '<div>' . $items . '</div>';
+    }
+
+    private function renderTicketLinkCard(string $url, string $label, string $description = ''): string
+    {
+        $url = trim($url);
+        if ($url === '') {
+            return '';
+        }
+
+        $safeUrl = htmlspecialchars($url, ENT_QUOTES);
+        $html = '<div style="padding:12px 16px; background:#f8fafc; border:1px solid #dbeafe; border-left:3px solid #2563eb; border-radius:6px;">'
+            . '<a href="' . $safeUrl . '" target="_blank" rel="noopener noreferrer" style="display:inline-block; color:#1d4ed8; font-weight:700; text-decoration:none;">'
+            . htmlspecialchars($label, ENT_QUOTES)
+            . '</a>';
+
+        if ($description !== '') {
+            $html .= '<div style="margin-top:4px; color:#475569; font-size:13px; line-height:1.45;">'
+                . htmlspecialchars($description, ENT_QUOTES)
+                . '</div>';
+        }
+
+        $html .= '<div style="margin-top:6px; color:#64748b; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:12px; word-break:break-all;">'
+            . $safeUrl
+            . '</div>'
+            . '</div>';
+
+        return $html;
+    }
+
+    private function renderExternalLinkList(array $links): string
+    {
+        $items = '';
+        foreach ($this->normalizeStringList($links) as $link) {
+            $safeLabel = htmlspecialchars($link, ENT_QUOTES);
+            if (filter_var($link, FILTER_VALIDATE_URL)) {
+                $safeHref = htmlspecialchars($link, ENT_QUOTES);
+                $items .= '<li style="margin:0 0 7px 0; color:#0f172a; word-break:break-all;">'
+                    . '<a href="' . $safeHref . '" target="_blank" rel="noopener noreferrer" style="color:#1d4ed8; text-decoration:none;">'
+                    . $safeLabel
+                    . '</a>'
+                    . '</li>';
+            } else {
+                $items .= '<li style="margin:0 0 7px 0; color:#0f172a; word-break:break-word;">' . $safeLabel . '</li>';
+            }
+        }
+
+        return $items === '' ? '' : '<ul style="margin:0; padding-left:18px;">' . $items . '</ul>';
+    }
+
+    private function renderVulnerabilityDetailLinks(array $groupRows): string
+    {
+        $items = '';
+        $seen = [];
+
+        foreach ($groupRows as $row) {
+            $id = (int) ($row['id'] ?? 0);
+            $url = $this->buildVulnerabilityDetailsUrl($id);
+            if ($id <= 0 || $url === '' || isset($seen[$id])) {
+                continue;
+            }
+            $seen[$id] = true;
+
+            $host = $this->loadHost((int) ($row['plugin_nessusglpi_hosts_id'] ?? 0));
+            $label = $host !== null ? $this->buildHostLabel($host->fields) : $this->buildAffectedTargetLabel($row);
+            $safeUrl = htmlspecialchars($url, ENT_QUOTES);
+            $items .= '<li style="margin:0 0 8px 0; color:#0f172a; word-break:break-word;">'
+                . htmlspecialchars($label, ENT_QUOTES)
+                . ' - <a href="' . $safeUrl . '" target="_blank" rel="noopener noreferrer" style="color:#1d4ed8; text-decoration:none;">'
+                . htmlspecialchars(__('Open details', 'nessusglpi'), ENT_QUOTES)
+                . '</a>'
+                . '<div style="margin-top:2px; color:#64748b; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:12px; word-break:break-all;">'
+                . $safeUrl
+                . '</div>'
+                . '</li>';
+        }
+
+        return $items === '' ? '' : '<ul style="margin:0; padding-left:18px;">' . $items . '</ul>';
     }
 
     private function renderTargetList(array $targets): string
