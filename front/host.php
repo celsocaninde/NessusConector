@@ -14,7 +14,7 @@ $csrfToken = Session::getNewCSRFToken();
 
 if (isset($_POST['delete_selected_hosts'])) {
     Session::checkRight(Host::$rightname, UPDATE);
-    Session::checkCsrfToken();
+    // CSRF is validated by GLPI 11's kernel (CheckCsrfListener) before this script runs.
 
     $selectedIds = array_map('intval', (array) ($_POST['host_ids'] ?? []));
     $selectedIds = array_values(array_filter($selectedIds, static fn (int $id): bool => $id > 0));

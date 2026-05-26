@@ -126,4 +126,94 @@ class TicketServiceTest extends TestCase
 
         $this->assertStringContainsString('no longer detected', $html);
     }
+
+    public function testDetectionFollowupHashIgnoresLastSeenTimestamp(): void
+    {
+        $baseFields = [
+            'vuln_key'         => 'asset|123|443',
+            'plugin_id_nessus' => '123',
+            'plugin_name'      => 'TLS issue',
+            'severity'         => 3,
+            'severity_label'   => 'High',
+            'plugin_output'    => 'same evidence',
+            'last_seen_at'     => '2026-05-20 10:00:00',
+        ];
+
+        $snapshotA = $this->invoke('buildDetectionSnapshot', [
+            $baseFields,
+            ['fqdn' => 'web01.local'],
+            ['scan_id' => '42', 'name' => 'Weekly scan'],
+            null,
+        ]);
+
+        $baseFields['last_seen_at'] = '2026-05-20 11:00:00';
+        $snapshotB = $this->invoke('buildDetectionSnapshot', [
+            $baseFields,
+            ['fqdn' => 'web01.local'],
+            ['scan_id' => '42', 'name' => 'Weekly scan'],
+            null,
+        ]);
+
+        $this->assertSame(
+            $this->invoke('buildDetectionFollowupHash', [$snapshotA]),
+            $this->invoke('buildDetectionFollowupHash', [$snapshotB])
+        );
+    }
+
+    public function testDetectionFollowupHashChangesWhenEvidenceChanges(): void
+    {
+        $fields = [
+            'vuln_key'         => 'asset|123|443',
+            'plugin_id_nessus' => '123',
+            'plugin_name'      => 'TLS issue',
+            'severity'         => 3,
+            'plugin_output'    => 'old evidence',
+        ];
+
+        $snapshotA = $this->invoke('buildDetectionSnapshot', [
+            $fields,
+            ['fqdn' => 'web01.local'],
+            ['scan_id' => '42'],
+            null,
+        ]);
+
+        $fields['plugin_output'] = 'new evidence';
+        $snapshotB = $this->invoke('buildDetectionSnapshot', [
+            $fields,
+            ['fqdn' => 'web01.local'],
+            ['scan_id' => '42'],
+            null,
+        ]);
+
+        $this->assertTrue(
+            $this->invoke('buildDetectionFollowupHash', [$snapshotA]) !== $this->invoke('buildDetectionFollowupHash', [$snapshotB])
+        );
+    }
+
+    public function testBuildDetectionFollowupContentIncludesMarkerAndEvidence(): void
+    {
+        $snapshot = $this->invoke('buildDetectionSnapshot', [
+            [
+                'vuln_key'         => 'asset|123|443',
+                'plugin_id_nessus' => '123',
+                'plugin_name'      => 'TLS issue',
+                'severity'         => 3,
+                'plugin_output'    => 'certificate expired',
+            ],
+            ['fqdn' => 'web01.local'],
+            ['scan_id' => '42', 'name' => 'Weekly scan'],
+            null,
+        ]);
+        $hash = $this->invoke('buildDetectionFollowupHash', [$snapshot]);
+
+        $html = $this->invoke('buildDetectionFollowupContent', [
+            ['first_seen_at' => '2026-05-20 09:00:00', 'last_seen_at' => '2026-05-20 10:00:00'],
+            $snapshot,
+            $hash,
+        ]);
+
+        $this->assertStringContainsString('nessusglpi-detection-hash:' . $hash, $html);
+        $this->assertStringContainsString('Vulnerability still detected', $html);
+        $this->assertStringContainsString('certificate expired', $html);
+    }
 }

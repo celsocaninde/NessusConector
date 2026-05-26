@@ -132,20 +132,53 @@ global $DB, $CFG_GLPI;
 
 $assetsBase = ($CFG_GLPI['root_doc'] ?? '') . '/plugins/nessusglpi';
 $assetVersion = defined('PLUGIN_NESSUSGLPI_VERSION') ? PLUGIN_NESSUSGLPI_VERSION : '1';
+$assetDir = __DIR__ . '/../public';
+$cssVersion = $assetVersion . '-' . (@filemtime($assetDir . '/css/vulnerabilities.css') ?: '0');
+$jsVersion  = $assetVersion . '-' . (@filemtime($assetDir . '/js/vulnerabilities.js') ?: '0');
 
-echo '<link rel="stylesheet" href="' . Html::cleanInputText($assetsBase . '/css/vulnerabilities.css?v=' . $assetVersion) . '">';
+echo '<link rel="stylesheet" href="' . Html::cleanInputText($assetsBase . '/css/vulnerabilities.css?v=' . $cssVersion) . '">';
 
 // Pagination params
 $start   = max(0, (int) ($_GET['_start'] ?? 0));
 $perPage = (int) ($_GET['_limit'] ?? 100);
 $perPage = in_array($perPage, [25, 50, 100, 200], true) ? $perPage : 100;
 
-// Lightweight count query — full dataset, for dashboard totals only
+// Host filter — only list hosts that actually have current findings for this scan.
+$hostFilter = (int) ($_GET['host_id'] ?? 0);
+$hostCounts = [];
+foreach ($DB->request([
+    'SELECT' => ['plugin_nessusglpi_hosts_id'],
+    'FROM'   => GlpiPlugin\Nessusglpi\Vulnerability::getTable(),
+    'WHERE'  => ['plugin_nessusglpi_scans_id' => $scanId, 'is_current' => 1],
+]) as $hAgg) {
+    $hid = (int) ($hAgg['plugin_nessusglpi_hosts_id'] ?? 0);
+    if ($hid > 0) {
+        $hostCounts[$hid] = ($hostCounts[$hid] ?? 0) + 1;
+    }
+}
+$hostLabels = [];
+foreach (array_keys($hostCounts) as $hid) {
+    $h = new Host();
+    $hostLabels[$hid] = $h->getFromDB($hid) ? nessusglpi_vuln_host_label($h->fields) : ('#' . $hid);
+}
+uasort($hostLabels, static fn($a, $b) => strcasecmp((string) $a, (string) $b));
+if ($hostFilter > 0 && !isset($hostCounts[$hostFilter])) {
+    $hostFilter = 0; // chosen host has no current findings — fall back to all
+}
+
+// Scope applied to both the dashboard counts and the list. When a host is
+// selected the dashboard recomputes for that host only.
+$scopeWhere = ['plugin_nessusglpi_scans_id' => $scanId, 'is_current' => 1];
+if ($hostFilter > 0) {
+    $scopeWhere['plugin_nessusglpi_hosts_id'] = $hostFilter;
+}
+
+// Lightweight count query — for dashboard totals (scoped to host filter if set)
 $counts = ['critical' => 0, 'high' => 0, 'medium' => 0, 'low' => 0, 'info' => 0];
 foreach ($DB->request([
     'SELECT' => ['severity', 'severity_label'],
     'FROM'   => GlpiPlugin\Nessusglpi\Vulnerability::getTable(),
-    'WHERE'  => ['plugin_nessusglpi_scans_id' => $scanId, 'is_current' => 1],
+    'WHERE'  => $scopeWhere,
 ]) as $cRow) {
     $sevKey = nessusglpi_vuln_severity_key($cRow);
     $counts[$sevKey] = ($counts[$sevKey] ?? 0) + 1;
@@ -156,7 +189,7 @@ $totalVulns = array_sum($counts);
 $rows = [];
 foreach ($DB->request([
     'FROM'  => GlpiPlugin\Nessusglpi\Vulnerability::getTable(),
-    'WHERE' => ['plugin_nessusglpi_scans_id' => $scanId, 'is_current' => 1],
+    'WHERE' => $scopeWhere,
     'ORDER' => ['severity DESC', 'plugin_name ASC', 'id DESC'],
     'LIMIT' => $perPage,
     'START' => $start,
@@ -227,8 +260,11 @@ echo Html::hidden('_glpi_csrf_token', ['value' => Session::getNewCSRFToken()]);
 echo '</form>';
 
 echo '<div class="nessus-vuln-page__toolbar">';
+echo '<label class="nessus-vuln-page__select-all">';
+echo '<input type="checkbox" data-nessus-vuln-master-check aria-label="' . Html::cleanInputText(__('Select all filtered vulnerabilities', 'nessusglpi')) . '">';
+echo '<span>' . Html::cleanInputText(__('Select filtered', 'nessusglpi')) . '</span>';
+echo '</label>';
 echo '<label class="nessus-vuln-page__search">';
-echo '<span class="nessus-vuln-page__search-icon">' . nessusglpi_vuln_icon('search') . '</span>';
 echo '<input type="search" data-nessus-vuln-search autocomplete="off" spellcheck="false" placeholder="' . Html::cleanInputText(__('Search by name, host, CVE…', 'nessusglpi')) . '">';
 echo '</label>';
 
@@ -237,6 +273,22 @@ echo '<option value="all">' . Html::cleanInputText(__('All', 'nessusglpi')) . '<
 echo '<option value="none">🎫 ' . Html::cleanInputText(__('Without ticket', 'nessusglpi')) . '</option>';
 echo '<option value="has">✅ ' . Html::cleanInputText(__('With ticket', 'nessusglpi')) . '</option>';
 echo '</select>';
+
+// Host filter (server-side): lists only hosts with current findings; selecting
+// one reloads the page scoped to that host (list + dashboard recompute).
+echo '<form method="get" class="nessus-vuln-page__host-form">';
+echo Html::hidden('scan_id', ['value' => $scanId]);
+echo Html::hidden('_limit', ['value' => $perPage]);
+echo '<select name="host_id" class="nessus-vuln-page__filter" onchange="this.form.submit()" aria-label="' . Html::cleanInputText(__('Filter by host', 'nessusglpi')) . '">';
+echo '<option value="0">🖥️ ' . Html::cleanInputText(__('All hosts', 'nessusglpi')) . '</option>';
+foreach ($hostLabels as $hid => $label) {
+    $sel = ($hostFilter === (int) $hid) ? ' selected' : '';
+    echo '<option value="' . (int) $hid . '"' . $sel . '>'
+        . Html::cleanInputText($label . ' (' . (int) $hostCounts[$hid] . ')')
+        . '</option>';
+}
+echo '</select>';
+echo '</form>';
 
 $pageFrom = $totalVulns > 0 ? $start + 1 : 0;
 $pageTo   = min($start + count($rows), $totalVulns);
@@ -343,7 +395,7 @@ echo '</div>';
 if ($totalVulns > $perPage || $start > 0) {
     $totalPages  = max(1, (int) ceil($totalVulns / $perPage));
     $currentPage = (int) floor($start / $perPage) + 1;
-    $baseUrl     = Html::cleanInputText($_SERVER['PHP_SELF'] . '?scan_id=' . $scanId . '&_limit=' . $perPage);
+    $baseUrl     = Html::cleanInputText($_SERVER['PHP_SELF'] . '?scan_id=' . $scanId . '&_limit=' . $perPage . '&host_id=' . $hostFilter);
 
     echo '<div class="nessus-pagination">';
     echo '<span class="nessus-pagination__info">' . sprintf(Html::cleanInputText(__('Page %1$d of %2$d', 'nessusglpi')), $currentPage, $totalPages) . '</span>';
@@ -361,6 +413,7 @@ if ($totalVulns > $perPage || $start > 0) {
     echo '</div>';
     echo '<form method="get" class="nessus-pagination__per-page">';
     echo Html::hidden('scan_id', ['value' => $scanId]);
+    echo Html::hidden('host_id', ['value' => $hostFilter]);
     echo Html::hidden('_start', ['value' => 0]);
     echo '<label class="nessus-pagination__label">' . Html::cleanInputText(__('Per page:', 'nessusglpi'));
     echo '<select name="_limit" class="nessus-pagination__select" onchange="this.form.submit()">';
@@ -398,6 +451,6 @@ echo '</div>';
 
 echo '</div>';
 
-echo '<script src="' . Html::cleanInputText($assetsBase . '/js/vulnerabilities.js?v=' . $assetVersion) . '" defer></script>';
+echo '<script src="' . Html::cleanInputText($assetsBase . '/js/vulnerabilities.js?v=' . $jsVersion) . '" defer></script>';
 
 Html::footer();

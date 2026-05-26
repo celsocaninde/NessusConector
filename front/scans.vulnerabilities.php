@@ -211,7 +211,6 @@ echo '<div class="nessus-vuln-page__total">' . sprintf(Html::cleanInputText(__('
 
 echo '<div class="nessus-vuln-page__toolbar">';
 echo '<label class="nessus-vuln-page__search">';
-echo '<span class="nessus-vuln-page__search-icon">' . nessusglpi_consolidated_icon('search') . '</span>';
 echo '<input type="search" data-nessus-vuln-search autocomplete="off" spellcheck="false" placeholder="' . Html::cleanInputText(__('Search by name, host, scan…', 'nessusglpi')) . '">';
 echo '</label>';
 $pageFrom = $totalVulns > 0 ? $start + 1 : 0;

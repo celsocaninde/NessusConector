@@ -15,6 +15,7 @@
     const emptyState = root.querySelector('[data-nessus-vuln-empty]');
     const selectionBar = root.querySelector('[data-nessus-vuln-selection-bar]');
     const selectionCount = root.querySelector('[data-nessus-vuln-selection-count]');
+    const masterCheckbox = root.querySelector('[data-nessus-vuln-master-check]');
     const bulkForm = document.getElementById(root.dataset.nessusBulkForm || '');
     const sevCards = Array.from(root.querySelectorAll('[data-nessus-sev-card]'));
 
@@ -29,6 +30,10 @@
 
     function visibleRows() {
         return rows.filter((row) => !row.hidden);
+    }
+
+    function visibleSelectableRows() {
+        return visibleRows().filter((row) => row.querySelector('[data-nessus-vuln-row-check]'));
     }
 
     function checkedRows() {
@@ -51,6 +56,24 @@
         } else {
             selectionBar.classList.remove('is-active');
         }
+
+        if (masterCheckbox) {
+            const selectable = visibleSelectableRows();
+            if (selectable.length === 0 || selected.length === 0) {
+                masterCheckbox.checked = false;
+                masterCheckbox.indeterminate = false;
+                masterCheckbox.disabled = selectable.length === 0;
+            } else if (selected.length === selectable.length) {
+                masterCheckbox.checked = true;
+                masterCheckbox.indeterminate = false;
+                masterCheckbox.disabled = false;
+            } else {
+                masterCheckbox.checked = false;
+                masterCheckbox.indeterminate = true;
+                masterCheckbox.disabled = false;
+            }
+        }
+
         for (const row of rows) {
             const cb = row.querySelector('[data-nessus-vuln-row-check]');
             row.dataset.selected = cb && cb.checked ? 'true' : 'false';
@@ -73,6 +96,12 @@
                 || (activeTicketFilter === 'none' && !hasTicket);
             const show = matchesQuery && matchesSeverity && matchesTicketFilter;
             row.hidden = !show;
+            if (!show) {
+                const cb = row.querySelector('[data-nessus-vuln-row-check]');
+                if (cb) {
+                    cb.checked = false;
+                }
+            }
             if (show) {
                 visible++;
             }
@@ -122,6 +151,19 @@
                 activeSeverities.add(sev);
             }
             applyFilter();
+        });
+    }
+
+    if (masterCheckbox) {
+        masterCheckbox.addEventListener('change', () => {
+            const target = masterCheckbox.checked;
+            for (const row of visibleSelectableRows()) {
+                const cb = row.querySelector('[data-nessus-vuln-row-check]');
+                if (cb) {
+                    cb.checked = target;
+                }
+            }
+            updateSelectionBar();
         });
     }
 

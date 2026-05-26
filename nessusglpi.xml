@@ -1,6 +1,6 @@
 <root>
 <name>Nessus Conector</name>
-<key>Nessus Conector</key>
+<key>nessusglpi</key>
 <state>stable</state>
 <!--  stable | unstable | beta | alpha  -->
 <logo>https://raw.githubusercontent.com/magaiverpr/NessusConector/refs/heads/main/images/nessus-logo.png</logo>

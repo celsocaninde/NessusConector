@@ -8,7 +8,7 @@ use GlpiPlugin\Nessusglpi\SyncJobService;
 include('../../../inc/includes.php');
 
 Session::checkRight(Scan::$rightname, UPDATE);
-Session::checkCsrfToken();
+// CSRF is validated by GLPI 11's kernel (CheckCsrfListener) before this script runs.
 
 $isAjax = (strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest')
     || (strpos((string) ($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json') !== false);

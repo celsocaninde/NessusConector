@@ -148,6 +148,7 @@ class SyncService
                 'last_sync_status' => 'success',
             ]);
 
+            $this->autoFollowupDetectedTickets($scanId);
             $this->autoResolveClearedTickets($scanId);
 
             return (int) $runId;
@@ -266,6 +267,7 @@ class SyncService
             'last_sync_status' => 'success',
         ]);
 
+        $this->autoFollowupDetectedTickets($scanId);
         $this->autoResolveClearedTickets($scanId);
 
         return $runId;
@@ -281,6 +283,18 @@ class SyncService
             (new TicketService())->autoResolveClearedVulnerabilities($scanId);
         } catch (Throwable $e) {
             // Auto-resolution is best-effort; a failure must not abort a successful sync.
+        }
+    }
+
+    /**
+     * Records changed Nessus evidence as ticket follow-ups without blocking the sync.
+     */
+    private function autoFollowupDetectedTickets(int $scanId): void
+    {
+        try {
+            (new TicketService())->autoFollowupCurrentVulnerabilities($scanId);
+        } catch (Throwable $e) {
+            // Auto follow-up is best-effort; a failure must not abort a successful sync.
         }
     }
 

@@ -257,20 +257,9 @@
     max-width: 380px;
 }
 
-.nessus-vuln-page__search-icon {
-    position: absolute;
-    top: 50%;
-    left: 11px;
-    width: 16px;
-    height: 16px;
-    transform: translateY(-50%);
-    color: var(--nessus-muted);
-    pointer-events: none;
-}
-
 .nessus-vuln-page__search input {
     width: 100%;
-    padding: 0.5rem 0.75rem 0.5rem 2.05rem;
+    padding: 0.5rem 0.75rem;
     border-radius: var(--nessus-radius-sm);
     border: 1px solid var(--nessus-border);
     background: var(--nessus-surface);
@@ -292,6 +281,50 @@
     color: inherit;
     font-size: 0.88rem;
     cursor: pointer;
+}
+
+.nessus-vuln-page__host-form {
+    margin: 0;
+    display: inline-flex;
+}
+
+.nessus-vuln-page__host-form .nessus-vuln-page__filter {
+    max-width: 260px;
+}
+
+.nessus-vuln-page__select-all {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-height: 36px;
+    padding: 0.45rem 0.7rem;
+    border: 1px solid var(--nessus-border);
+    border-radius: var(--nessus-radius-sm);
+    background: var(--nessus-surface);
+    background: color-mix(in srgb, var(--nessus-surface) 88%, var(--nessus-primary) 12%);
+    color: inherit;
+    font-size: 0.86rem;
+    font-weight: 600;
+    cursor: pointer;
+    user-select: none;
+}
+
+.nessus-vuln-page__select-all input[type="checkbox"] {
+    width: 17px;
+    height: 17px;
+    margin: 0;
+    cursor: pointer;
+    accent-color: var(--nessus-primary);
+}
+
+.nessus-vuln-page__select-all:has(input:disabled) {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.nessus-vuln-page__select-all:has(input:focus-visible) {
+    outline: 3px solid rgba(13, 110, 253, 0.18);
+    outline-offset: 2px;
 }
 
 .nessus-vuln-page__meta {
@@ -1045,7 +1078,8 @@
     }
 
     .nessus-vuln-page__search,
-    .nessus-vuln-page__filter {
+    .nessus-vuln-page__filter,
+    .nessus-vuln-page__select-all {
         max-width: none;
         width: 100%;
     }

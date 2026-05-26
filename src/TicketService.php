@@ -20,6 +20,7 @@ class TicketService
             $existingTicketId = $this->findExistingVulnerabilityTicket($vulnerability->fields);
             if ($existingTicketId !== null) {
                 $this->ensureCurrentVulnerabilityLink($vulnerabilityId, $existingTicketId);
+                $this->addCurrentDetectionFollowupIfChanged($existingTicketId, $vulnerability->fields);
                 return $existingTicketId;
             }
         }
@@ -27,9 +28,14 @@ class TicketService
         $host = $this->loadHost((int) ($vulnerability->fields['plugin_nessusglpi_hosts_id'] ?? 0));
         $scan = $this->loadScan((int) ($vulnerability->fields['plugin_nessusglpi_scans_id'] ?? 0));
         $pluginDetails = $this->loadPluginDetails($vulnerability->fields, $host?->fields ?? null, $scan?->fields ?? null);
+        $detectionSnapshot = $this->buildDetectionSnapshot($vulnerability->fields, $host?->fields ?? null, $scan?->fields ?? null, $pluginDetails);
+        $detectionHash = $this->buildDetectionFollowupHash($detectionSnapshot);
 
         $title = $this->buildVulnerabilityTitle($vulnerability->fields, $host?->fields ?? null);
-        $content = $this->buildVulnerabilityContent($vulnerability->fields, $host?->fields ?? null, $scan?->fields ?? null, $pluginDetails);
+        $content = $this->appendDetectionHashMarker(
+            $this->buildVulnerabilityContent($vulnerability->fields, $host?->fields ?? null, $scan?->fields ?? null, $pluginDetails),
+            $detectionHash
+        );
 
         $ticketInput = [
             'name'    => $title,
@@ -54,6 +60,80 @@ class TicketService
         $this->ensureCurrentVulnerabilityLink($vulnerabilityId, $ticketId);
 
         return (int) $ticketId;
+    }
+
+    public function autoFollowupCurrentVulnerabilities(int $scanId): int
+    {
+        global $DB;
+
+        if ($scanId <= 0 || !class_exists(\ITILFollowup::class)) {
+            return 0;
+        }
+
+        $linkTable = VulnerabilityTicket::getTable();
+        $vulnTable = Vulnerability::getTable();
+
+        $iterator = $DB->request([
+            'SELECT'     => [
+                $linkTable . '.tickets_id',
+                $linkTable . '.plugin_nessusglpi_vulnerabilities_id',
+            ],
+            'FROM'       => $linkTable,
+            'INNER JOIN' => [
+                $vulnTable => [
+                    'FKEY' => [
+                        $linkTable => 'plugin_nessusglpi_vulnerabilities_id',
+                        $vulnTable => 'id',
+                    ],
+                ],
+            ],
+            'WHERE' => [
+                $vulnTable . '.plugin_nessusglpi_scans_id' => $scanId,
+            ],
+            'ORDER' => [$linkTable . '.id DESC'],
+        ]);
+
+        $added = 0;
+        $processed = [];
+
+        foreach ($iterator as $row) {
+            $ticketId = (int) ($row['tickets_id'] ?? 0);
+            $linkedVulnerabilityId = (int) ($row['plugin_nessusglpi_vulnerabilities_id'] ?? 0);
+            if ($ticketId <= 0 || $linkedVulnerabilityId <= 0 || !$this->isTicketUsable($ticketId)) {
+                continue;
+            }
+
+            $linkedVulnerability = new Vulnerability();
+            if (!$linkedVulnerability->getFromDB($linkedVulnerabilityId)) {
+                continue;
+            }
+
+            $currentFields = $this->findCurrentEquivalentVulnerabilityFields($linkedVulnerability->fields);
+            if ($currentFields === null) {
+                continue;
+            }
+
+            $currentVulnerabilityId = (int) ($currentFields['id'] ?? 0);
+            $processKey = $ticketId . ':' . $currentVulnerabilityId;
+            if ($currentVulnerabilityId <= 0 || isset($processed[$processKey])) {
+                continue;
+            }
+            $processed[$processKey] = true;
+
+            $this->ensureCurrentVulnerabilityLink($currentVulnerabilityId, $ticketId);
+            if ($this->addCurrentDetectionFollowupIfChanged($ticketId, $currentFields)) {
+                $added++;
+            }
+        }
+
+        if ($added > 0) {
+            AuditLog::info('auto-followup', sprintf('Added %d Nessus detection follow-up(s) after scan #%d.', $added, $scanId), [
+                'scan_id'  => $scanId,
+                'followups' => $added,
+            ]);
+        }
+
+        return $added;
     }
 
     /**
@@ -373,9 +453,13 @@ class TicketService
             throw new RuntimeException(__('No vulnerabilities were selected.', 'nessusglpi'));
         }
 
-        // Single vulnerability on this host: just one ticket, no hierarchy needed.
-        if (count($groupRows) <= 1) {
-            $ticketId = $this->createTicketFromVulnerability((int) ($groupRows[0]['id'] ?? 0), $forceNew);
+        // One child per affected host: keep the most severe row per host.
+        $rowsByHost = $this->dedupGroupRowsByHost($groupRows);
+
+        // Only one host affected by this vulnerability: a single ticket is enough.
+        if (count($rowsByHost) <= 1) {
+            $only = reset($rowsByHost) ?: ['id' => $groupRows[0]['id'] ?? 0];
+            $ticketId = $this->createTicketFromVulnerability((int) ($only['id'] ?? 0), $forceNew);
             return ['parent' => $ticketId, 'children' => []];
         }
 
@@ -384,7 +468,7 @@ class TicketService
         if (!$forceNew) {
             $existingParentId = $this->findExistingGroupParentTicket($groupRows);
             if ($existingParentId !== null) {
-                $childIds = $this->ensureChildTicketsForGroup($existingParentId, $groupRows, $forceNew);
+                $childIds = $this->ensureChildTicketsForGroup($existingParentId, $rowsByHost, $forceNew);
 
                 foreach ($groupRows as $row) {
                     $this->ensureCurrentVulnerabilityLink((int) ($row['id'] ?? 0), $existingParentId);
@@ -394,11 +478,11 @@ class TicketService
             }
         }
 
-        // Create one parent per host + one child per vulnerability.
-        $parentId = $this->createHostGroupParentTicket($groupRows);
+        // 1 parent per vulnerability/CVE (overview across hosts) + 1 child per affected host.
+        $parentId = $this->createGroupParentTicket($groupRows, $rowsByHost);
 
         $childIds = [];
-        foreach ($groupRows as $row) {
+        foreach ($rowsByHost as $row) {
             $childId = $this->createTicketFromVulnerability((int) ($row['id'] ?? 0), $forceNew);
             if ($childId <= 0 || $childId === $parentId) {
                 continue;
@@ -442,10 +526,11 @@ class TicketService
             $this->linkTicketToAsset($parentId, (string) ($row['itemtype'] ?? ''), (int) ($row['items_id'] ?? 0));
         }
 
-        // Keep the dedup index aware of every vulnerability that belongs to this group.
-        foreach ($groupRows as $row) {
-            $this->ensureCurrentVulnerabilityLink((int) ($row['id'] ?? 0), $parentId);
-        }
+        // NB: we deliberately do NOT link the vulnerabilities to the parent here.
+        // Each vulnerability is linked to its own child ticket (one per host) by
+        // createTicketFromVulnerability(); linking them to the parent first would
+        // make the child-creation dedup return the parent and skip every child.
+        // Re-run dedup still finds the parent by walking child → parent (SON_OF).
 
         return $parentId;
     }
@@ -643,6 +728,289 @@ class TicketService
                 '_load_error' => $e->getMessage(),
             ];
         }
+    }
+
+    private function findCurrentEquivalentVulnerabilityFields(array $vulnerabilityFields): ?array
+    {
+        global $DB;
+
+        $equivalentIds = Vulnerability::getEquivalentVulnerabilityIds($vulnerabilityFields);
+        if ($equivalentIds === []) {
+            return null;
+        }
+
+        $row = $DB->request([
+            'FROM'  => Vulnerability::getTable(),
+            'WHERE' => [
+                'id'         => $equivalentIds,
+                'is_current' => 1,
+            ],
+            'ORDER' => ['id DESC'],
+            'LIMIT' => 1,
+        ])->current();
+
+        return is_array($row) && $row !== [] ? $row : null;
+    }
+
+    private function addCurrentDetectionFollowupIfChanged(int $ticketId, array $vulnerabilityFields): bool
+    {
+        if ($ticketId <= 0 || !class_exists(\ITILFollowup::class) || !$this->isTicketUsable($ticketId)) {
+            return false;
+        }
+
+        $host = $this->loadHost((int) ($vulnerabilityFields['plugin_nessusglpi_hosts_id'] ?? 0));
+        $scan = $this->loadScan((int) ($vulnerabilityFields['plugin_nessusglpi_scans_id'] ?? 0));
+        $pluginDetails = $this->loadPluginDetails($vulnerabilityFields, $host?->fields ?? null, $scan?->fields ?? null);
+        $snapshot = $this->buildDetectionSnapshot($vulnerabilityFields, $host?->fields ?? null, $scan?->fields ?? null, $pluginDetails);
+        $hash = $this->buildDetectionFollowupHash($snapshot);
+
+        if ($hash === '' || $this->ticketAlreadyHasDetectionHash($ticketId, $hash)) {
+            return false;
+        }
+
+        $content = $this->buildDetectionFollowupContent($vulnerabilityFields, $snapshot, $hash);
+
+        try {
+            return (bool) (new \ITILFollowup())->add([
+                'itemtype' => \Ticket::class,
+                'items_id' => $ticketId,
+                'content'  => $content,
+            ]);
+        } catch (Throwable $e) {
+            return false;
+        }
+    }
+
+    private function buildDetectionSnapshot(array $fields, ?array $hostFields, ?array $scanFields, ?array $pluginDetails): array
+    {
+        $riskInformation = is_array($pluginDetails['risk_information'] ?? null) ? $pluginDetails['risk_information'] : [];
+        $pluginInformation = is_array($pluginDetails['plugin_information'] ?? null) ? $pluginDetails['plugin_information'] : [];
+        $vulnInformation = is_array($pluginDetails['vuln_information'] ?? null) ? $pluginDetails['vuln_information'] : [];
+
+        $dbCvss = ((float) ($fields['cvss_base_score'] ?? 0)) > 0 ? (string) $fields['cvss_base_score'] : '';
+
+        return [
+            'schema'                   => 'nessusglpi-detection-v1',
+            'vuln_key'                 => (string) ($fields['vuln_key'] ?? ''),
+            'plugin_id'                => (string) ($fields['plugin_id_nessus'] ?? ''),
+            'plugin_name'              => $this->cleanText((string) ($fields['plugin_name'] ?? '')),
+            'severity'                 => (int) ($fields['severity'] ?? 0),
+            'severity_label'           => $this->normalizeSeverityLabel((string) ($fields['severity_label'] ?? ''), (int) ($fields['severity'] ?? 0)),
+            'host'                     => $this->buildHostLabel($hostFields),
+            'scan_id'                  => (string) ($scanFields['scan_id'] ?? ''),
+            'scan_name'                => $this->cleanText((string) ($scanFields['name'] ?? '')),
+            'port'                     => $this->firstNonEmpty([$pluginDetails['port'] ?? null, $fields['port'] ?? null]),
+            'protocol'                 => $this->firstNonEmpty([$pluginDetails['protocol'] ?? null, $fields['protocol'] ?? null]),
+            'cve'                      => $this->firstNonEmpty([$pluginDetails['cve'] ?? null, $fields['cve'] ?? null]),
+            'synopsis'                 => $this->firstNonEmpty([$pluginDetails['synopsis'] ?? null, $fields['synopsis'] ?? null]),
+            'description'              => $this->firstNonEmpty([$pluginDetails['description'] ?? null, $fields['description'] ?? null]),
+            'solution'                 => $this->firstNonEmpty([$pluginDetails['solution'] ?? null, $fields['solution'] ?? null]),
+            'plugin_output'            => $this->firstNonEmpty([$pluginDetails['plugin_output'] ?? null, $fields['plugin_output'] ?? null]),
+            'risk_factor'              => $this->firstNonEmpty([$riskInformation['risk_factor'] ?? null, $fields['risk_factor'] ?? null]),
+            'cvss_base_score'          => $this->firstNonEmpty([$riskInformation['cvss_base_score'] ?? null, $dbCvss]),
+            'cvss3_base_score'         => $this->firstNonEmpty([$riskInformation['cvss3_base_score'] ?? null]),
+            'vpr_score'                => $this->firstNonEmpty([$pluginDetails['vpr_score'] ?? null, $pluginDetails['vpr'] ?? null]),
+            'exploit_available'        => $this->firstNonEmpty([$vulnInformation['exploit_available'] ?? null]),
+            'patch_publication_date'   => $this->firstNonEmpty([$vulnInformation['patch_publication_date'] ?? null]),
+            'plugin_publication_date'  => $this->firstNonEmpty([$pluginInformation['plugin_publication_date'] ?? null]),
+            'plugin_modification_date' => $this->firstNonEmpty([$pluginInformation['plugin_modification_date'] ?? null]),
+            'cpe'                      => $this->firstNonEmpty([$vulnInformation['cpe'] ?? null]),
+            'outputs'                  => is_array($pluginDetails['outputs'] ?? null) ? $pluginDetails['outputs'] : [],
+        ];
+    }
+
+    private function buildDetectionFollowupHash(array $snapshot): string
+    {
+        $normalized = $this->normalizeSnapshotValue($snapshot);
+        $encoded = json_encode($normalized, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        return is_string($encoded) ? sha1($encoded) : '';
+    }
+
+    private function buildDetectionFollowupContent(array $fields, array $snapshot, string $hash): string
+    {
+        $when = date('Y-m-d H:i:s');
+        $portProtocol = $this->joinPortProtocol((string) ($snapshot['port'] ?? ''), (string) ($snapshot['protocol'] ?? ''));
+        $name = $this->cleanText((string) ($snapshot['plugin_name'] ?? '')) ?: __('Nessus vulnerability', 'nessusglpi');
+
+        $html = [];
+        $html[] = $this->detectionHashMarker($hash);
+        $html[] = '<div style="font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif;">';
+        $html[] = '<div style="padding:12px 16px; background:#eff6ff; border-left:4px solid #2563eb; border-radius:6px; color:#1e3a8a; font-size:14px; line-height:1.55;">'
+            . '<strong>' . htmlspecialchars(__('Vulnerability still detected', 'nessusglpi'), ENT_QUOTES) . '</strong><br>'
+            . htmlspecialchars(
+                sprintf(
+                    __('The latest Nessus synchronization (%s) still reports this finding. The evidence below was recorded automatically because the detection details changed or had not been recorded before.', 'nessusglpi'),
+                    $when
+                ),
+                ENT_QUOTES
+            )
+            . '</div>';
+
+        $html[] = $this->renderTicketCallout(__('Target & context', 'nessusglpi'), [
+            __('Host', 'nessusglpi')      => (string) ($snapshot['host'] ?? ''),
+            __('Scan', 'nessusglpi')      => (string) ($snapshot['scan_name'] ?? ''),
+            __('Plugin ID', 'nessusglpi') => (string) ($snapshot['plugin_id'] ?? ''),
+            __('Scan ID', 'nessusglpi')   => (string) ($snapshot['scan_id'] ?? ''),
+            __('Port', 'nessusglpi')      => $portProtocol,
+            __('First seen', 'nessusglpi') => $this->cleanText((string) ($fields['first_seen_at'] ?? '')),
+            __('Last seen', 'nessusglpi') => $this->cleanText((string) ($fields['last_seen_at'] ?? '')),
+        ]);
+
+        $html[] = $this->renderTicketSection(__('Detection', 'nessusglpi'), $this->renderTicketBlockquote($name));
+
+        if ((string) ($snapshot['synopsis'] ?? '') !== '') {
+            $html[] = $this->renderTicketSection(__('Synopsis', 'nessusglpi'), $this->renderTicketBlockquote((string) $snapshot['synopsis']));
+        }
+
+        if ((string) ($snapshot['description'] ?? '') !== '') {
+            $html[] = $this->renderTicketSection(__('Description'), $this->renderTicketProse((string) $snapshot['description']));
+        }
+
+        if ((string) ($snapshot['solution'] ?? '') !== '') {
+            $html[] = $this->renderTicketSection(
+                __('Recommended solution', 'nessusglpi'),
+                $this->renderTicketHighlight((string) $snapshot['solution'], '#198754')
+            );
+        }
+
+        $cveList = $this->extractCveList((string) ($snapshot['cve'] ?? ''));
+        if ($cveList !== []) {
+            $html[] = $this->renderTicketSection(__('Related CVEs', 'nessusglpi'), $this->renderCveList($cveList));
+        }
+
+        $riskRows = array_filter([
+            'CVSS v2'                              => (string) ($snapshot['cvss_base_score'] ?? ''),
+            'CVSS v3'                              => (string) ($snapshot['cvss3_base_score'] ?? ''),
+            'VPR'                                  => (string) ($snapshot['vpr_score'] ?? ''),
+            __('Risk factor', 'nessusglpi')        => (string) ($snapshot['risk_factor'] ?? ''),
+            __('Exploit available', 'nessusglpi')  => (string) ($snapshot['exploit_available'] ?? ''),
+            __('Patch publication date', 'nessusglpi') => (string) ($snapshot['patch_publication_date'] ?? ''),
+        ], static fn ($value): bool => trim((string) $value) !== '');
+        if ($riskRows !== []) {
+            $html[] = $this->renderTicketSection(__('Risk assessment', 'nessusglpi'), $this->renderTicketTable($riskRows));
+        }
+
+        if ((string) ($snapshot['plugin_output'] ?? '') !== '') {
+            $html[] = $this->renderTicketSection(__('Plugin output', 'nessusglpi'), $this->renderTicketCodeBlock((string) $snapshot['plugin_output']));
+        }
+
+        $portsTable = is_array($snapshot['outputs'] ?? null) ? $this->renderPortsTable($snapshot['outputs']) : '';
+        if ($portsTable === '' && $portProtocol !== '') {
+            $portsTable = $this->renderTicketTable([
+                __('Port', 'nessusglpi')     => (string) ($snapshot['port'] ?? ''),
+                __('Protocol', 'nessusglpi') => strtoupper((string) ($snapshot['protocol'] ?? '')),
+            ]);
+        }
+        if ($portsTable !== '') {
+            $html[] = $this->renderTicketSection(__('Affected ports', 'nessusglpi'), $portsTable);
+        }
+
+        $pluginMetaRows = array_filter([
+            __('Published', 'nessusglpi') => (string) ($snapshot['plugin_publication_date'] ?? ''),
+            __('Modified', 'nessusglpi')  => (string) ($snapshot['plugin_modification_date'] ?? ''),
+            'CPE'                         => (string) ($snapshot['cpe'] ?? ''),
+        ], static fn ($value): bool => trim((string) $value) !== '');
+        if ($pluginMetaRows !== []) {
+            $html[] = $this->renderTicketSection(__('Plugin metadata', 'nessusglpi'), $this->renderTicketTable($pluginMetaRows));
+        }
+
+        $html[] = $this->renderTicketFooter();
+        $html[] = '</div>';
+
+        return implode("\n", $html);
+    }
+
+    private function appendDetectionHashMarker(string $content, string $hash): string
+    {
+        if ($hash === '' || str_contains($content, 'nessusglpi-detection-hash:' . $hash)) {
+            return $content;
+        }
+
+        return $this->detectionHashMarker($hash) . "\n" . $content;
+    }
+
+    private function detectionHashMarker(string $hash): string
+    {
+        return '<span style="display:none">nessusglpi-detection-hash:' . htmlspecialchars($hash, ENT_QUOTES) . '</span>';
+    }
+
+    private function ticketAlreadyHasDetectionHash(int $ticketId, string $hash): bool
+    {
+        global $DB;
+
+        if ($ticketId <= 0 || $hash === '') {
+            return false;
+        }
+
+        $needle = 'nessusglpi-detection-hash:' . $hash;
+
+        $ticket = new \Ticket();
+        if ($ticket->getFromDB($ticketId) && str_contains((string) ($ticket->fields['content'] ?? ''), $needle)) {
+            return true;
+        }
+
+        if (!class_exists(\ITILFollowup::class)) {
+            return false;
+        }
+
+        $iterator = $DB->request([
+            'SELECT' => ['id', 'content'],
+            'FROM'   => \ITILFollowup::getTable(),
+            'WHERE'  => [
+                'itemtype' => \Ticket::class,
+                'items_id' => $ticketId,
+            ],
+            'ORDER' => ['id DESC'],
+            'LIMIT' => 100,
+        ]);
+
+        foreach ($iterator as $row) {
+            if (str_contains((string) ($row['content'] ?? ''), $needle)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function normalizeSnapshotValue($value)
+    {
+        if (is_array($value)) {
+            $normalized = [];
+            foreach ($value as $key => $item) {
+                $normalized[$key] = $this->normalizeSnapshotValue($item);
+            }
+
+            if ($this->isAssociativeArray($normalized)) {
+                ksort($normalized);
+            }
+
+            return $normalized;
+        }
+
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+
+        if ($value === null) {
+            return '';
+        }
+
+        if (is_scalar($value)) {
+            return trim((string) $value);
+        }
+
+        return '';
+    }
+
+    private function isAssociativeArray(array $value): bool
+    {
+        if ($value === []) {
+            return false;
+        }
+
+        return array_keys($value) !== range(0, count($value) - 1);
     }
 
     private function findExistingVulnerabilityTicket(array $vulnerabilityFields): ?int
@@ -1057,6 +1425,7 @@ class TicketService
 
         $html[] = $this->renderTicketCallout('🎯 ' . __('Target & context', 'nessusglpi'), [
             '🖥️ ' . __('Host', 'nessusglpi')          => $hostLabel,
+            '🗂️ ' . __('Scan', 'nessusglpi')          => $this->cleanText((string) ($scanFields['name'] ?? '')),
             '📌 ' . __('Plugin ID', 'nessusglpi')      => (string) ($fields['plugin_id_nessus'] ?? ''),
             '🔍 ' . __('Scan ID', 'nessusglpi')        => (string) ($scanFields['scan_id'] ?? ''),
             '🚪 ' . __('Port', 'nessusglpi')           => $this->joinPortProtocol($port, $protocol),
@@ -1084,14 +1453,21 @@ class TicketService
             $html[] = $this->renderTicketSection('🔗 ' . __('Related CVEs', 'nessusglpi'), $this->renderCveList($cveList));
         }
 
+        // Fall back to the values stored in the DB when the live Nessus detail is unavailable.
+        $dbCvss = ((float) ($fields['cvss_base_score'] ?? 0)) > 0 ? (string) $fields['cvss_base_score'] : null;
         $riskRows = [
             'CVSS v2'                                    => $this->firstNonEmpty([$riskInformation['cvss_base_score'] ?? null]),
             'CVSS v3'                                    => $this->firstNonEmpty([$riskInformation['cvss3_base_score'] ?? null]),
+            'CVSS'                                       => $this->firstNonEmpty([$dbCvss]),
             'VPR'                                        => $this->firstNonEmpty([$pluginDetails['vpr_score'] ?? null, $pluginDetails['vpr'] ?? null]),
-            __('Risk factor', 'nessusglpi')              => $this->firstNonEmpty([$riskInformation['risk_factor'] ?? null]),
+            __('Risk factor', 'nessusglpi')              => $this->firstNonEmpty([$riskInformation['risk_factor'] ?? null, $fields['risk_factor'] ?? null]),
             __('Exploit available', 'nessusglpi')        => $this->firstNonEmpty([$vulnInformation['exploit_available'] ?? null]),
             __('Patch publication date', 'nessusglpi')   => $this->firstNonEmpty([$vulnInformation['patch_publication_date'] ?? null]),
         ];
+        // Avoid showing both a generic "CVSS" and the versioned ones at the same time.
+        if (($riskRows['CVSS v2'] ?? '') !== '' || ($riskRows['CVSS v3'] ?? '') !== '') {
+            $riskRows['CVSS'] = '';
+        }
         $riskRowsFiltered = array_filter($riskRows, static fn ($v) => $v !== '');
         if ($riskRowsFiltered !== []) {
             $html[] = $this->renderTicketSection('📊 ' . __('Risk assessment', 'nessusglpi'), $this->renderTicketTable($riskRowsFiltered));
@@ -1101,11 +1477,18 @@ class TicketService
             $html[] = $this->renderTicketSection('📤 ' . __('Plugin output', 'nessusglpi'), $this->renderTicketCodeBlock($pluginOutput));
         }
 
+        $portsTable = '';
         if (is_array($pluginDetails) && isset($pluginDetails['outputs']) && is_array($pluginDetails['outputs'])) {
             $portsTable = $this->renderPortsTable($pluginDetails['outputs']);
-            if ($portsTable !== '') {
-                $html[] = $this->renderTicketSection('📡 ' . __('Affected ports', 'nessusglpi'), $portsTable);
-            }
+        }
+        if ($portsTable === '' && $this->joinPortProtocol($port, $protocol) !== '') {
+            $portsTable = $this->renderTicketTable([
+                '🚪 ' . __('Port', 'nessusglpi')     => $port !== '' ? $port : '—',
+                '📡 ' . __('Protocol', 'nessusglpi') => $protocol !== '' ? strtoupper($protocol) : '—',
+            ]);
+        }
+        if ($portsTable !== '') {
+            $html[] = $this->renderTicketSection('📡 ' . __('Affected ports', 'nessusglpi'), $portsTable);
         }
 
         $pluginMetaRows = [
@@ -1216,14 +1599,26 @@ class TicketService
             $html[] = $this->renderTicketSection('🔗 ' . __('Related CVEs', 'nessusglpi'), $this->renderCveList($cveList));
         }
 
+        $dbCvssGroup = ((float) ($fields['cvss_base_score'] ?? 0)) > 0 ? (string) $fields['cvss_base_score'] : null;
         $riskRows = array_filter([
             'CVSS v2'                                    => $this->firstNonEmpty([$riskInformation['cvss_base_score'] ?? null]),
             'CVSS v3'                                    => $this->firstNonEmpty([$riskInformation['cvss3_base_score'] ?? null]),
-            __('Risk factor', 'nessusglpi')              => $this->firstNonEmpty([$riskInformation['risk_factor'] ?? null]),
+            'CVSS'                                       => $this->firstNonEmpty([$dbCvssGroup]),
+            __('Risk factor', 'nessusglpi')              => $this->firstNonEmpty([$riskInformation['risk_factor'] ?? null, $fields['risk_factor'] ?? null]),
             __('Exploit available', 'nessusglpi')        => $this->firstNonEmpty([$vulnInformation['exploit_available'] ?? null]),
         ], static fn ($v) => $v !== '');
+        if (isset($riskRows['CVSS v2']) || isset($riskRows['CVSS v3'])) {
+            unset($riskRows['CVSS']);
+        }
         if ($riskRows !== []) {
             $html[] = $this->renderTicketSection('📊 ' . __('Risk assessment', 'nessusglpi'), $this->renderTicketTable($riskRows));
+        }
+
+        if ($this->joinPortProtocol($port, $protocol) !== '') {
+            $html[] = $this->renderTicketSection('📡 ' . __('Affected ports', 'nessusglpi'), $this->renderTicketTable([
+                '🚪 ' . __('Port', 'nessusglpi')     => $port !== '' ? $port : '—',
+                '📡 ' . __('Protocol', 'nessusglpi') => $protocol !== '' ? strtoupper($protocol) : '—',
+            ]));
         }
 
         if ($pluginOutput !== '') {
@@ -1385,7 +1780,15 @@ class TicketService
 
     private function buildGroupedVulnerabilityKey(array $fields): string
     {
-        return sha1('host|' . (string) ((int) ($fields['plugin_nessusglpi_hosts_id'] ?? 0)));
+        // Group by the vulnerability itself (Nessus plugin id) so the same finding
+        // across several hosts produces ONE parent ticket + one child per host.
+        $pluginId = trim((string) ($fields['plugin_id_nessus'] ?? ''));
+        if ($pluginId !== '') {
+            return sha1('plugin|' . $pluginId);
+        }
+
+        // Fallback when the Nessus plugin id is missing: name + severity.
+        return sha1('name|' . strtolower(trim((string) ($fields['plugin_name'] ?? ''))) . '|' . (int) ($fields['severity'] ?? 0));
     }
 
     private function normalizeSeverityLabel(string $label, int $severity): string
