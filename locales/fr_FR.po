@@ -8,7 +8,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: src/TicketService.php:108
+#: src/TicketService.php:112
 msgid "[Nessus] Pending host: %s"
 msgstr ""
 
@@ -21,16 +21,16 @@ msgid "Access key and secret key are required."
 msgstr ""
 
 #: src/Vulnerability.php:108
-#: front/scan.php:99
-#: front/scan.vulnerabilities.php:241
+#: front/scan.php:79
+#: front/scan.vulnerabilities.php:204
 msgid "Actions"
 msgstr "Actions"
 
-#: front/scan.php:91
+#: front/scan.php:71
 msgid "Add"
 msgstr ""
 
-#: src/TicketService.php:565
+#: src/TicketService.php:545
 msgid "Affected assets"
 msgstr "Actifs affectes"
 
@@ -38,7 +38,7 @@ msgstr "Actifs affectes"
 msgid "API URL"
 msgstr ""
 
-#: front/scan.php:89
+#: front/scan.php:68
 msgid "Are you sure you want to delete the selected scans and all plugin data related to them?"
 msgstr ""
 
@@ -46,12 +46,13 @@ msgstr ""
 msgid "Asset types for matching"
 msgstr ""
 
-#: front/scan.vulnerabilities.php:176
+#: front/scan.vulnerabilities.php:139
+#: front/scans.vulnerabilities.php:134
 #: front/vulnerability.form.php:271
 msgid "Back"
 msgstr ""
 
-#: src/Scan.php:333
+#: src/Scan.php:350
 msgid "Choose which severities will be imported during synchronization."
 msgstr ""
 
@@ -59,7 +60,7 @@ msgstr ""
 msgid "Computer"
 msgstr ""
 
-#: src/Scan.php:259
+#: src/Scan.php:276
 msgid "Configuration"
 msgstr "Configuration"
 
@@ -75,22 +76,27 @@ msgstr ""
 msgid "Connection to the Nessus server timed out."
 msgstr ""
 
+#: front/scans.vulnerabilities.php:117
+#: front/scans.vulnerabilities.php:120
+msgid "Consolidated vulnerabilities"
+msgstr ""
+
 #: front/vulnerability.form.php:303
 msgid "CPE"
 msgstr ""
 
 #: src/Vulnerability.php:100
-#: front/scan.vulnerabilities.php:238
+#: front/scan.vulnerabilities.php:201
 msgid "Create grouped tickets"
 msgstr "Creer des tickets groupes"
 
 #: src/Vulnerability.php:99
-#: front/scan.vulnerabilities.php:237
+#: front/scan.vulnerabilities.php:200
 msgid "Create selected tickets"
 msgstr ""
 
 #: src/Vulnerability.php:324
-#: front/scan.vulnerabilities.php:281
+#: front/scan.vulnerabilities.php:244
 msgid "Create ticket"
 msgstr "Creer un ticket"
 
@@ -103,7 +109,7 @@ msgid "Current vulnerabilities"
 msgstr ""
 
 #: front/host.php:48
-#: front/scan.php:96
+#: front/scan.php:76
 msgid "Delete selected"
 msgstr "Supprimer la selection"
 
@@ -115,26 +121,30 @@ msgstr ""
 msgid "Deleted %d scan(s)."
 msgstr ""
 
-#: src/TicketService.php:497
-#: src/TicketService.php:577
 #: front/vulnerability.form.php:284
 msgid "Description"
 msgstr "Description"
 
-#: src/TicketService.php:622
+#: src/TicketService.php:510
+#: src/TicketService.php:551
+#: src/TicketService.php:569
 msgid "Details"
-msgstr ""
+msgstr "Details"
 
-#: front/scan.php:90
+#: front/scan.php:69
 msgid "Do you want to queue this scan synchronization now?"
 msgstr ""
 
-#: front/scan.php:116
+#: front/scan.php:96
 msgid "Edit"
 msgstr ""
 
-#: src/Scan.php:323
-#: front/scan.php:99
+#: front/scans.vulnerabilities.php:122
+msgid "Entities"
+msgstr ""
+
+#: src/Scan.php:340
+#: front/scan.php:79
 #: front/scanrun.php:19
 msgid "Entity"
 msgstr ""
@@ -151,16 +161,18 @@ msgstr ""
 msgid "History"
 msgstr ""
 
-#: front/scan.vulnerabilities.php:241
+#: src/TicketService.php:508
+#: front/scan.vulnerabilities.php:204
+#: front/scans.vulnerabilities.php:213
 #: front/vulnerability.form.php:292
 msgid "Host"
 msgstr "Hote"
 
-#: src/TicketService.php:616
+#: src/TicketService.php:563
 msgid "Host imported from Nessus without a confirmed asset link."
 msgstr ""
 
-#: src/TicketService.php:96
+#: src/TicketService.php:100
 msgid "Host not found."
 msgstr ""
 
@@ -176,7 +188,7 @@ msgstr ""
 msgid "Hosts"
 msgstr ""
 
-#: src/SyncService.php:134
+#: src/SyncService.php:138
 msgid "Imported %d host(s) and %d vulnerability entries."
 msgstr ""
 
@@ -193,7 +205,7 @@ msgstr ""
 msgid "Imported hosts"
 msgstr "Hotes importes"
 
-#: src/Scan.php:325
+#: src/Scan.php:342
 msgid "Imported severities"
 msgstr ""
 
@@ -209,11 +221,7 @@ msgstr ""
 msgid "Invalid Nessus API URL. Use something like https://nessus.example.local:8834"
 msgstr ""
 
-#: src/TicketService.php:487
-msgid "Last seen"
-msgstr ""
-
-#: front/scan.php:99
+#: front/scan.php:79
 msgid "Last synchronization"
 msgstr "Derniere synchronisation"
 
@@ -225,34 +233,35 @@ msgstr "Derniere synchronisation"
 msgid "Linked asset"
 msgstr ""
 
-#: src/TicketService.php:621
+#: src/TicketService.php:568
 #: front/host.php:51
 msgid "Match status"
 msgstr ""
 
-#: src/SyncService.php:499
+#: src/SyncService.php:503
 msgid "Matched with %s #%d"
-msgstr ""
-
-#: src/TicketService.php:506
-#: src/TicketService.php:606
-msgid "Message"
 msgstr ""
 
 #: front/vulnerability.form.php:300
 msgid "Modification date"
 msgstr ""
 
-#: src/TicketService.php:473
+#: src/TicketService.php:511
+#: src/TicketService.php:637
+msgid "More information for host %s"
+msgstr "Plus d informations pour l hote %s"
+
+#: src/TicketService.php:487
 msgid "Multiple assets (%d)"
 msgstr "Actifs multiples (%d)"
 
-#: src/Scan.php:337
-#: src/TicketService.php:482
-#: src/TicketService.php:555
+#: src/Scan.php:354
+#: src/TicketService.php:499
+#: src/TicketService.php:535
 #: src/Vulnerability.php:106
-#: front/scan.php:99
-#: front/scan.vulnerabilities.php:241
+#: front/scan.php:79
+#: front/scan.vulnerabilities.php:204
+#: front/scans.vulnerabilities.php:213
 #: front/vulnerability.php:18
 msgid "Name"
 msgstr "Nom"
@@ -270,7 +279,7 @@ msgid "Nessus API URL is not configured."
 msgstr ""
 
 #: src/Profile.php:172
-#: src/Scan.php:233
+#: src/Scan.php:250
 #: setup.php:40
 msgid "Nessus Conector"
 msgstr "Nessus Conector"
@@ -281,18 +290,13 @@ msgstr "Nessus Conector"
 msgid "Nessus configuration"
 msgstr ""
 
-#: src/TicketService.php:505
-#: src/TicketService.php:605
-msgid "Nessus detail error"
-msgstr ""
-
 #: src/Profile.php:37
 msgid "Nessus host tickets"
 msgstr ""
 
 #: src/Scan.php:28
-#: src/Scan.php:315
-#: front/scan.form.php:112
+#: src/Scan.php:332
+#: front/scan.form.php:138
 msgid "Nessus scan"
 msgstr "Scan Nessus"
 
@@ -301,17 +305,21 @@ msgid "Nessus scan run"
 msgstr "Execution du scan Nessus"
 
 #: src/Profile.php:19
-#: front/scan.php:59
-#: front/scan.php:72
+#: front/scan.php:38
+#: front/scan.php:51
 msgid "Nessus scans"
+msgstr ""
+
+#: src/TicketMemory.php:22
+msgid "Nessus ticket memory"
 msgstr ""
 
 #: src/Profile.php:31
 msgid "Nessus vulnerabilities"
 msgstr ""
 
-#: src/TicketService.php:453
-#: src/TicketService.php:464
+#: src/TicketService.php:467
+#: src/TicketService.php:478
 #: src/Vulnerability.php:25
 msgid "Nessus vulnerability"
 msgstr ""
@@ -324,7 +332,7 @@ msgstr ""
 msgid "No"
 msgstr ""
 
-#: src/SyncService.php:500
+#: src/SyncService.php:504
 msgid "No asset match found with the configured item types."
 msgstr ""
 
@@ -340,20 +348,28 @@ msgstr ""
 msgid "No valid response was received from the Nessus server."
 msgstr ""
 
-#: front/scan.vulnerabilities.php:227
+#: front/scans.vulnerabilities.php:208
+msgid "No vulnerabilities imported for the selected entities yet."
+msgstr ""
+
+#: front/scan.vulnerabilities.php:190
 msgid "No vulnerabilities imported for this scan yet."
 msgstr ""
 
-#: src/TicketService.php:141
+#: src/TicketService.php:145
 msgid "No vulnerabilities were selected."
 msgstr "Aucune vulnerabilite n a ete selectionnee."
 
-#: front/scan.php:120
+#: front/scans.vulnerabilities.php:132
+msgid "None"
+msgstr ""
+
+#: front/scan.php:101
 msgid "Open in Nessus"
 msgstr "Ouvrir dans Nessus"
 
 #: src/Vulnerability.php:316
-#: front/scan.vulnerabilities.php:275
+#: front/scan.vulnerabilities.php:238
 msgid "Open new ticket"
 msgstr "Ouvrir un nouveau ticket"
 
@@ -365,16 +381,6 @@ msgstr ""
 msgid "Output"
 msgstr ""
 
-#: src/TicketService.php:515
-#: src/TicketService.php:590
-msgid "Outputs"
-msgstr "Sorties"
-
-#: src/TicketService.php:492
-#: src/TicketService.php:570
-msgid "Overview"
-msgstr "Vue d ensemble"
-
 #: front/vulnerability.form.php:301
 msgid "Patch publication date"
 msgstr ""
@@ -383,20 +389,10 @@ msgstr ""
 msgid "Phone"
 msgstr ""
 
-#: src/TicketService.php:511
-#: src/TicketService.php:586
-msgid "Plugin attributes"
-msgstr ""
-
-#: src/TicketService.php:512
-#: src/TicketService.php:587
-msgid "Plugin information"
-msgstr ""
-
-#: src/TicketService.php:499
-#: src/TicketService.php:579
-msgid "Plugin output"
-msgstr ""
+#: src/TicketService.php:501
+#: src/TicketService.php:537
+msgid "Plugin ID"
+msgstr "ID du plugin"
 
 #: src/Profile.php:189
 #: templates/profile_rights.html.twig:2
@@ -407,8 +403,6 @@ msgstr ""
 msgid "Plugin rights updated successfully."
 msgstr ""
 
-#: src/TicketService.php:494
-#: src/TicketService.php:574
 #: front/vulnerability.form.php:176
 msgid "Port"
 msgstr ""
@@ -419,11 +413,6 @@ msgstr ""
 
 #: front/profile.rights.php:13
 msgid "Profile not found."
-msgstr ""
-
-#: src/TicketService.php:495
-#: src/TicketService.php:575
-msgid "Protocol"
 msgstr ""
 
 #: front/vulnerability.form.php:299
@@ -438,53 +427,55 @@ msgstr ""
 msgid "Risk factor"
 msgstr ""
 
-#: src/TicketService.php:513
-#: src/TicketService.php:588
-msgid "Risk information"
-msgstr ""
-
 #: src/Profile.php:220
 msgid "Save"
 msgstr ""
 
-#: front/scan.vulnerabilities.php:173
+#: front/scan.vulnerabilities.php:136
 #: front/scanrun.php:19
+#: front/scans.vulnerabilities.php:213
 msgid "Scan"
 msgstr ""
 
-#: front/scan.form.php:43
-#: front/scan.form.php:91
+#: front/scan.form.php:47
+#: front/scan.form.php:106
 msgid "Scan %s"
 msgstr ""
 
-#: front/scan.form.php:59
+#: front/scan.form.php:70
 msgid "Scan created successfully. Initial synchronization queued as job #%d."
 msgstr ""
 
-#: front/scan.php:99
+#: front/scan.php:79
 msgid "Scan executed at"
 msgstr "Scan execute le"
 
-#: src/Scan.php:273
+#: src/Scan.php:290
 #: src/ScanRun.php:39
 #: front/scanrun.php:12
 #: front/scanrun.php:17
 msgid "Scan history"
 msgstr "Historique des scans"
 
-#: src/Scan.php:324
-#: front/scan.php:99
+#: src/Scan.php:341
+#: src/TicketService.php:505
+#: front/scan.php:79
+#: front/scans.vulnerabilities.php:213
 msgid "Scan ID"
-msgstr ""
+msgstr "ID du scan"
 
 #: src/Vulnerability.php:202
 msgid "Scan ID %s"
 msgstr ""
 
-#: front/scan.form.php:37
-#: front/scan.form.php:85
+#: front/scan.form.php:39
+#: front/scan.form.php:98
 msgid "Scan ID is required."
 msgstr ""
+
+#: src/TicketService.php:541
+msgid "Scan IDs"
+msgstr "IDs des scans"
 
 #: front/vulnerability.form.php:204
 msgid "Scan not found for this vulnerability."
@@ -497,16 +488,16 @@ msgstr ""
 msgid "Scan not found."
 msgstr ""
 
-#: front/scan.form.php:101
+#: front/scan.form.php:126
 msgid "Scan updated successfully."
 msgstr ""
 
-#: front/scan.vulnerabilities.php:168
-#: front/scan.vulnerabilities.php:171
+#: front/scan.vulnerabilities.php:131
+#: front/scan.vulnerabilities.php:134
 msgid "Scan vulnerabilities"
 msgstr ""
 
-#: src/Scan.php:251
+#: src/Scan.php:268
 msgid "Scans"
 msgstr "Scans"
 
@@ -519,7 +510,7 @@ msgid "See Also"
 msgstr ""
 
 #: src/Vulnerability.php:98
-#: front/scan.vulnerabilities.php:236
+#: front/scan.vulnerabilities.php:199
 msgid "Select all"
 msgstr ""
 
@@ -535,21 +526,20 @@ msgstr ""
 msgid "Select at least one vulnerability."
 msgstr ""
 
-#: src/TicketService.php:483
-#: src/TicketService.php:556
+#: src/TicketService.php:500
+#: src/TicketService.php:536
 #: src/Vulnerability.php:105
-#: front/scan.vulnerabilities.php:241
+#: front/scan.vulnerabilities.php:204
+#: front/scans.vulnerabilities.php:213
 #: front/vulnerability.php:18
 msgid "Severity"
 msgstr "Severite"
 
 #: src/Vulnerability.php:130
-#: front/scan.vulnerabilities.php:267
+#: front/scan.vulnerabilities.php:230
 msgid "Show details"
 msgstr "Afficher les details"
 
-#: src/TicketService.php:498
-#: src/TicketService.php:578
 #: front/vulnerability.form.php:285
 msgid "Solution"
 msgstr "Correctif"
@@ -562,12 +552,12 @@ msgstr ""
 msgid "Started at"
 msgstr ""
 
-#: front/scan.php:99
+#: front/scan.php:79
 #: front/scanrun.php:19
 msgid "Status"
 msgstr "Statut"
 
-#: front/scan.php:125
+#: front/scan.php:107
 msgid "Sync"
 msgstr ""
 
@@ -575,17 +565,12 @@ msgstr ""
 msgid "Sync job"
 msgstr ""
 
-#: src/SyncJobService.php:146
+#: src/SyncJobService.php:114
 msgid "Synchronization completed. Run #%d created."
 msgstr ""
 
-#: front/scan.php:49
+#: front/scan.sync.php:19
 msgid "Synchronization queued. Job #%d created."
-msgstr ""
-
-#: src/TicketService.php:496
-#: src/TicketService.php:576
-msgid "Synopsis"
 msgstr ""
 
 #: src/Config.php:129
@@ -596,7 +581,7 @@ msgstr ""
 msgid "The PHP cURL extension is required."
 msgstr ""
 
-#: front/scan.php:85
+#: front/scan.php:64
 msgid "There are %d synchronization job(s) queued or waiting for processing."
 msgstr ""
 
@@ -609,7 +594,7 @@ msgid "This vulnerability cannot be expanded yet. Run a new synchronization so t
 msgstr ""
 
 #: src/Vulnerability.php:107
-#: front/scan.vulnerabilities.php:241
+#: front/scan.vulnerabilities.php:204
 msgid "Ticket"
 msgstr "Ticket"
 
@@ -635,6 +620,7 @@ msgstr ""
 
 #: src/Vulnerability.php:268
 #: front/scan.vulnerabilities.php:72
+#: front/scans.vulnerabilities.php:63
 msgid "Total current vulnerabilities: %d"
 msgstr ""
 
@@ -646,13 +632,13 @@ msgstr ""
 msgid "Unable to create scan run."
 msgstr ""
 
-#: front/scan.form.php:53
+#: front/scan.form.php:58
 msgid "Unable to create the scan record."
 msgstr ""
 
-#: src/TicketService.php:50
-#: src/TicketService.php:123
-#: src/TicketService.php:176
+#: src/TicketService.php:53
+#: src/TicketService.php:127
+#: src/TicketService.php:182
 msgid "Unable to create the ticket."
 msgstr ""
 
@@ -677,12 +663,13 @@ msgstr ""
 msgid "Unknown connection error while contacting Nessus."
 msgstr ""
 
-#: src/TicketService.php:106
-#: src/TicketService.php:469
-#: src/TicketService.php:631
-#: src/TicketService.php:649
-#: src/TicketService.php:715
-#: front/scan.vulnerabilities.php:148
+#: src/TicketService.php:110
+#: src/TicketService.php:483
+#: src/TicketService.php:578
+#: src/TicketService.php:596
+#: src/TicketService.php:706
+#: front/scan.vulnerabilities.php:111
+#: front/scans.vulnerabilities.php:97
 #: front/vulnerability.form.php:67
 msgid "Unknown host"
 msgstr ""
@@ -692,15 +679,19 @@ msgid "Unmanaged device"
 msgstr ""
 
 #: src/Vulnerability.php:310
-#: front/scan.vulnerabilities.php:270
+#: front/scan.vulnerabilities.php:233
 msgid "View"
 msgstr ""
 
-#: front/scan.php:117
+#: front/scan.php:71
+msgid "View consolidated vulnerabilities"
+msgstr ""
+
+#: front/scan.php:97
 msgid "View vulnerabilities"
 msgstr "Voir les vulnerabilites"
 
-#: src/Scan.php:266
+#: src/Scan.php:283
 #: src/Vulnerability.php:31
 #: front/vulnerability.php:11
 #: front/vulnerability.php:16
@@ -712,16 +703,16 @@ msgstr "Vulnerabilites"
 msgid "Vulnerability details"
 msgstr ""
 
-#: src/TicketService.php:553
+#: src/TicketService.php:533
 msgid "Vulnerability imported from Nessus affecting multiple assets."
 msgstr "Vulnerabilite importee depuis Nessus affectant plusieurs actifs."
 
-#: src/TicketService.php:480
+#: src/TicketService.php:497
 msgid "Vulnerability imported from Nessus."
-msgstr ""
+msgstr "Vulnerabilite importee depuis Nessus."
 
 #: src/TicketService.php:16
-#: src/TicketService.php:70
+#: src/TicketService.php:74
 #: front/vulnerability.form.php:195
 msgid "Vulnerability not found."
 msgstr ""

@@ -16,16 +16,19 @@ class TicketService
             throw new RuntimeException(__('Vulnerability not found.', 'nessusglpi'));
         }
 
+        $host = $this->loadHost((int) ($vulnerability->fields['plugin_nessusglpi_hosts_id'] ?? 0));
+
         if (!$forceNew) {
-            $existingTicketId = $this->findExistingVulnerabilityTicket($vulnerability->fields);
+            $existingTicketId = $this->findExistingVulnerabilityTicket($vulnerability->fields, $host?->fields ?? null);
             if ($existingTicketId !== null) {
                 $this->ensureCurrentVulnerabilityLink($vulnerabilityId, $existingTicketId);
+                $this->linkTicketToAsset($existingTicketId, (string) ($vulnerability->fields['itemtype'] ?? ''), (int) ($vulnerability->fields['items_id'] ?? 0));
+                TicketMemory::rememberVulnerabilityTicket($vulnerability->fields, $host?->fields ?? null, $existingTicketId);
                 $this->addCurrentDetectionFollowupIfChanged($existingTicketId, $vulnerability->fields);
                 return $existingTicketId;
             }
         }
 
-        $host = $this->loadHost((int) ($vulnerability->fields['plugin_nessusglpi_hosts_id'] ?? 0));
         $scan = $this->loadScan((int) ($vulnerability->fields['plugin_nessusglpi_scans_id'] ?? 0));
         $pluginDetails = $this->loadPluginDetails($vulnerability->fields, $host?->fields ?? null, $scan?->fields ?? null);
         $detectionSnapshot = $this->buildDetectionSnapshot($vulnerability->fields, $host?->fields ?? null, $scan?->fields ?? null, $pluginDetails);
@@ -58,6 +61,7 @@ class TicketService
 
         $this->linkTicketToAsset($ticketId, (string) ($vulnerability->fields['itemtype'] ?? ''), (int) ($vulnerability->fields['items_id'] ?? 0));
         $this->ensureCurrentVulnerabilityLink($vulnerabilityId, $ticketId);
+        TicketMemory::rememberVulnerabilityTicket($vulnerability->fields, $host?->fields ?? null, $ticketId);
 
         return (int) $ticketId;
     }
@@ -1013,41 +1017,47 @@ class TicketService
         return array_keys($value) !== range(0, count($value) - 1);
     }
 
-    private function findExistingVulnerabilityTicket(array $vulnerabilityFields): ?int
+    private function findExistingVulnerabilityTicket(array $vulnerabilityFields, ?array $hostFields): ?int
     {
         global $DB;
 
         $equivalentIds = Vulnerability::getEquivalentVulnerabilityIds($vulnerabilityFields);
-        if ($equivalentIds === []) {
-            return null;
-        }
+        if ($equivalentIds !== []) {
+            $iterator = $DB->request([
+                'FROM'  => VulnerabilityTicket::getTable(),
+                'WHERE' => [
+                    'plugin_nessusglpi_vulnerabilities_id' => $equivalentIds,
+                ],
+                'ORDER' => ['id DESC'],
+            ]);
 
-        $iterator = $DB->request([
-            'FROM'  => VulnerabilityTicket::getTable(),
-            'WHERE' => [
-                'plugin_nessusglpi_vulnerabilities_id' => $equivalentIds,
-            ],
-            'ORDER' => ['id DESC'],
-        ]);
+            foreach ($iterator as $row) {
+                $ticketId = (int) ($row['tickets_id'] ?? 0);
+                if ($ticketId <= 0) {
+                    continue;
+                }
 
-        foreach ($iterator as $row) {
-            $ticketId = (int) ($row['tickets_id'] ?? 0);
-            if ($ticketId <= 0) {
-                continue;
-            }
-
-            if ($this->isTicketUsable($ticketId)) {
-                return $ticketId;
+                if ($this->isTicketUsable($ticketId)) {
+                    return $ticketId;
+                }
             }
         }
 
-        return null;
+        return TicketMemory::findVulnerabilityTicketId($vulnerabilityFields, $hostFields);
     }
 
     private function findExistingGroupedVulnerabilityTicket(array $groupRows): ?int
     {
         foreach ($groupRows as $row) {
             $ticketId = $this->findTicketLinkedDirectlyToVulnerability((int) ($row['id'] ?? 0));
+            if ($ticketId !== null) {
+                return $ticketId;
+            }
+        }
+
+        foreach ($groupRows as $row) {
+            $host = $this->loadHost((int) ($row['plugin_nessusglpi_hosts_id'] ?? 0));
+            $ticketId = TicketMemory::findVulnerabilityTicketId($row, $host?->fields ?? null);
             if ($ticketId !== null) {
                 return $ticketId;
             }
@@ -1071,6 +1081,24 @@ class TicketService
 
         foreach ($groupRows as $row) {
             $ticketId = $this->findTicketLinkedDirectlyToVulnerability((int) ($row['id'] ?? 0));
+            if ($ticketId === null || isset($seen[$ticketId])) {
+                continue;
+            }
+            $seen[$ticketId] = true;
+
+            $parentOfThis = $this->findParentTicketId($ticketId);
+            if ($parentOfThis !== null && $this->isTicketUsable($parentOfThis)) {
+                return $parentOfThis;
+            }
+
+            if ($this->ticketHasChildren($ticketId) && $this->isTicketUsable($ticketId)) {
+                return $ticketId;
+            }
+        }
+
+        foreach ($groupRows as $row) {
+            $host = $this->loadHost((int) ($row['plugin_nessusglpi_hosts_id'] ?? 0));
+            $ticketId = TicketMemory::findVulnerabilityTicketId($row, $host?->fields ?? null);
             if ($ticketId === null || isset($seen[$ticketId])) {
                 continue;
             }
@@ -1710,6 +1738,50 @@ class TicketService
         }
 
         return __('Unknown host', 'nessusglpi');
+    }
+
+    private function buildVulnerabilityDetailsUrl(int $vulnerabilityId): string
+    {
+        global $CFG_GLPI;
+
+        $path = '/plugins/nessusglpi/front/vulnerability.form.php?id=' . $vulnerabilityId;
+        $urlBase = rtrim((string) ($CFG_GLPI['url_base'] ?? ''), '/');
+        if ($urlBase !== '') {
+            return $urlBase . $path;
+        }
+
+        $rootDoc = rtrim((string) ($CFG_GLPI['root_doc'] ?? ''), '/');
+        return $rootDoc . $path;
+    }
+
+    private function collectAffectedHostLabels(array $groupRows): array
+    {
+        $labels = [];
+
+        foreach ($groupRows as $row) {
+            $host = $this->loadHost((int) ($row['plugin_nessusglpi_hosts_id'] ?? 0));
+            $label = $host !== null ? $this->buildHostLabel($host->fields) : $this->buildAffectedTargetLabel($row);
+            if ($label === '') {
+                continue;
+            }
+
+            $labels[$label] = $label;
+        }
+
+        return array_values($labels);
+    }
+
+    private function buildGroupedDetailLines(array $groupRows): array
+    {
+        $lines = [];
+
+        foreach ($groupRows as $row) {
+            $host = $this->loadHost((int) ($row['plugin_nessusglpi_hosts_id'] ?? 0));
+            $label = $host !== null ? $this->buildHostLabel($host->fields) : $this->buildAffectedTargetLabel($row);
+            $lines[] = sprintf(__('More information for host %s', 'nessusglpi'), $label) . ' - ' . $this->buildVulnerabilityDetailsUrl((int) ($row['id'] ?? 0));
+        }
+
+        return $lines;
     }
 
     private function collectAffectedTargets(array $groupRows): array

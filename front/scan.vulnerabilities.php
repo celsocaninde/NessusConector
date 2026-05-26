@@ -102,28 +102,7 @@ function nessusglpi_vuln_host_link(array $row, array $hostRow): array
 
 function nessusglpi_vuln_existing_ticket(array $vulnerabilityRow): ?array
 {
-    global $DB;
-    $equivalentIds = Vulnerability::getEquivalentVulnerabilityIds($vulnerabilityRow);
-    if ($equivalentIds === []) return null;
-
-    $iterator = $DB->request([
-        'FROM'  => GlpiPlugin\Nessusglpi\VulnerabilityTicket::getTable(),
-        'WHERE' => ['plugin_nessusglpi_vulnerabilities_id' => $equivalentIds],
-        'ORDER' => ['id DESC'],
-    ]);
-    foreach ($iterator as $link) {
-        $ticketId = (int) ($link['tickets_id'] ?? 0);
-        if ($ticketId <= 0) continue;
-        $ticket = new Ticket();
-        if (!$ticket->getFromDB($ticketId)) continue;
-        if ((int) ($ticket->fields['is_deleted'] ?? 0) !== 0) continue;
-        return [
-            'id'   => (int) $ticket->fields['id'],
-            'name' => (string) ($ticket->fields['name'] ?? ''),
-            'link' => $ticket->getLinkURL(),
-        ];
-    }
-    return null;
+    return Vulnerability::getLinkedTicketData($vulnerabilityRow);
 }
 
 Html::header(__('Scan vulnerabilities', 'nessusglpi'), $_SERVER['PHP_SELF'], 'plugins', 'GlpiPlugin\\Nessusglpi\\Scan');

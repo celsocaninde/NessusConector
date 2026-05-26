@@ -131,6 +131,20 @@ function plugin_nessusglpi_run_install(): bool
             KEY `plugin_nessusglpi_hosts_id` (`plugin_nessusglpi_hosts_id`),
             KEY `tickets_id` (`tickets_id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        "CREATE TABLE IF NOT EXISTS `glpi_plugin_nessusglpi_ticket_memory` (
+            `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            `vuln_key` VARCHAR(255) NOT NULL,
+            `itemtype` VARCHAR(100) NOT NULL DEFAULT '',
+            `items_id` INT UNSIGNED NOT NULL DEFAULT 0,
+            `host_fingerprint` VARCHAR(255) NOT NULL DEFAULT '',
+            `tickets_id` INT UNSIGNED NOT NULL,
+            `date_creation` TIMESTAMP NULL DEFAULT NULL,
+            PRIMARY KEY (`id`),
+            KEY `vuln_key` (`vuln_key`),
+            KEY `asset_link` (`itemtype`, `items_id`),
+            KEY `host_fingerprint` (`host_fingerprint`),
+            KEY `tickets_id` (`tickets_id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         "CREATE TABLE IF NOT EXISTS `glpi_plugin_nessusglpi_logs` (
             `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
             `level` VARCHAR(16) NOT NULL DEFAULT 'info',
@@ -179,6 +193,20 @@ function plugin_nessusglpi_run_install(): bool
         // > 1KB), so VARCHAR(255) overflows on save ("Data too long for column
         // 'secret_key'"). Widen to TEXT to hold the encrypted credential.
         "ALTER TABLE `glpi_plugin_nessusglpi_configs` MODIFY COLUMN `secret_key` TEXT DEFAULT NULL",
+        "CREATE TABLE IF NOT EXISTS `glpi_plugin_nessusglpi_ticket_memory` (
+            `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            `vuln_key` VARCHAR(255) NOT NULL,
+            `itemtype` VARCHAR(100) NOT NULL DEFAULT '',
+            `items_id` INT UNSIGNED NOT NULL DEFAULT 0,
+            `host_fingerprint` VARCHAR(255) NOT NULL DEFAULT '',
+            `tickets_id` INT UNSIGNED NOT NULL,
+            `date_creation` TIMESTAMP NULL DEFAULT NULL,
+            PRIMARY KEY (`id`),
+            KEY `vuln_key` (`vuln_key`),
+            KEY `asset_link` (`itemtype`, `items_id`),
+            KEY `host_fingerprint` (`host_fingerprint`),
+            KEY `tickets_id` (`tickets_id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     ];
 
     foreach ($upgradeQueries as $query) {
