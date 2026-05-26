@@ -21,12 +21,22 @@ function plugin_nessusglpi_install(): bool
 
 function plugin_nessusglpi_register_crontasks(): void
 {
-    // Drains the sync queue unattended so synchronization no longer depends on an open browser tab.
+    global $DB;
+
+    // Drains the sync queue unattended so synchronization never depends on an open browser tab.
+    // This task can run for a long time, so production must execute it through external cron/CLI.
     CronTask::register(SyncCron::class, 'queue', 5 * MINUTE_TIMESTAMP, [
         'comment'   => __('Process queued Nessus synchronization jobs', 'nessusglpi'),
-        'mode'      => CronTask::MODE_INTERNAL,
+        'mode'      => CronTask::MODE_EXTERNAL,
         'allowmode' => CronTask::MODE_INTERNAL | CronTask::MODE_EXTERNAL,
         'state'     => CronTask::STATE_WAITING,
+    ]);
+
+    $DB->update('glpi_crontasks', [
+        'mode' => CronTask::MODE_EXTERNAL,
+    ], [
+        'itemtype' => SyncCron::class,
+        'name'     => 'queue',
     ]);
 
     // Periodically re-queues active scans that have not synced within the task frequency.

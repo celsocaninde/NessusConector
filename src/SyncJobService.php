@@ -66,6 +66,40 @@ class SyncJobService
         return $this->countJobsByStatus(['pending', 'running'], $entityIds);
     }
 
+    public function getRecentlyFinishedJobs(array $entityIds = [], string $finishedSince = '', int $limit = 20): array
+    {
+        global $DB;
+
+        $criteria = [
+            'status' => ['success', 'error'],
+        ];
+        if ($entityIds !== []) {
+            $criteria['entities_id'] = $entityIds;
+        }
+
+        $finishedSince = trim($finishedSince);
+        if ($finishedSince !== '') {
+            $timestamp = strtotime($finishedSince);
+            if ($timestamp !== false) {
+                $criteria['finished_at'] = ['>', date('Y-m-d H:i:s', $timestamp)];
+            }
+        }
+
+        $jobs = [];
+        $iterator = $DB->request([
+            'FROM'  => SyncJob::getTable(),
+            'WHERE' => $criteria,
+            'ORDER' => ['finished_at DESC', 'id DESC'],
+            'LIMIT' => max(1, min(50, $limit)),
+        ]);
+
+        foreach ($iterator as $row) {
+            $jobs[] = $row;
+        }
+
+        return array_reverse($jobs);
+    }
+
     public function processNextPendingJob(array $entityIds = []): ?array
     {
         global $DB;

@@ -144,8 +144,11 @@ foreach ($DB->request([
 $totalScans = count($rows);
 $assetsBase = ($CFG_GLPI['root_doc'] ?? '') . '/plugins/nessusglpi';
 $assetVersion = defined('PLUGIN_NESSUSGLPI_VERSION') ? PLUGIN_NESSUSGLPI_VERSION : '1';
+$assetDir = __DIR__ . '/../public';
+$cssVersion = $assetVersion . '-' . (@filemtime($assetDir . '/css/scan-list.css') ?: '0');
+$jsVersion = $assetVersion . '-' . (@filemtime($assetDir . '/js/scan-list.js') ?: '0');
 
-echo '<link rel="stylesheet" href="' . Html::cleanInputText($assetsBase . '/css/scan-list.css?v=' . $assetVersion) . '">';
+echo '<link rel="stylesheet" href="' . Html::cleanInputText($assetsBase . '/css/scan-list.css?v=' . $cssVersion) . '">';
 
 $bulkFormId = 'nessusglpi-delete-scans-form';
 
@@ -154,9 +157,10 @@ $queueConfig = [
     'url'             => $assetsBase . '/ajax/sync.queue.php',
     'csrf'            => $csrfToken,
     'idlePollMs'      => 15000,
+    'checkedAt'       => date('Y-m-d H:i:s'),
     'i18n'            => [
-        'startMessage'      => __('Processing %d pending synchronization job(s)…', 'nessusglpi'),
-        'errorMessage'      => __('Could not contact the sync worker. Will retry shortly.', 'nessusglpi'),
+        'startMessage'      => __('Monitoring %d queued synchronization job(s)…', 'nessusglpi'),
+        'errorMessage'      => __('Could not contact the sync queue status endpoint. Will retry shortly.', 'nessusglpi'),
         'jobSuccess'        => __('Synchronization of “%s” finished.', 'nessusglpi'),
         'jobError'          => __('Synchronization of “%s” failed.', 'nessusglpi'),
         'queueIdle'         => __('Sync queue is idle.', 'nessusglpi'),
@@ -164,7 +168,7 @@ $queueConfig = [
         'queueOpenPlural'   => __('%d jobs in queue', 'nessusglpi'),
         'queueWaitSingular' => __('%d job waiting', 'nessusglpi'),
         'queueWaitPlural'   => __('%d jobs waiting', 'nessusglpi'),
-        'rowSyncing'        => __('Syncing…', 'nessusglpi'),
+        'rowSyncing'        => __('Queued…', 'nessusglpi'),
         'rowSyncFailed'     => __('Sync failed', 'nessusglpi'),
     ],
 ];
@@ -408,6 +412,6 @@ echo '</div>';
 
 echo '</div>';
 
-echo '<script src="' . Html::cleanInputText($assetsBase . '/js/scan-list.js?v=' . $assetVersion) . '" defer></script>';
+echo '<script src="' . Html::cleanInputText($assetsBase . '/js/scan-list.js?v=' . $jsVersion) . '" defer></script>';
 
 Html::footer();

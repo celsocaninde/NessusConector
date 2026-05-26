@@ -13,38 +13,45 @@ header('Content-Type: application/json; charset=utf-8');
 
 $entityIds = Scan::getVisibleEntityIds();
 $service   = new SyncJobService();
+$finishedSince = trim((string) ($_POST['since'] ?? ''));
 
-$result = $service->processNextPendingJob($entityIds);
+$recentJobs = $service->getRecentlyFinishedJobs($entityIds, $finishedSince);
 
 $payload = [
     'ok'        => true,
-    'processed' => $result !== null,
-    'remaining' => (int) ($result['remaining'] ?? $service->countPendingJobs($entityIds)),
+    'processed' => false,
+    'remaining' => (int) $service->countPendingJobs($entityIds),
     'open'      => (int) $service->countOpenJobs($entityIds),
     'job'       => null,
+    'jobs'      => [],
+    'checked_at' => date('Y-m-d H:i:s'),
 ];
 
-if ($result !== null) {
-    $scanInternalId = (int) ($result['scan_id'] ?? 0);
+foreach ($recentJobs as $jobRow) {
+    $scanInternalId = (int) ($jobRow['plugin_nessusglpi_scans_id'] ?? 0);
     $scan = new Scan();
     $scanRow = $scanInternalId > 0 && $scan->getFromDB($scanInternalId) ? $scan->fields : [];
 
-    $lastSyncStatus = (string) ($scanRow['last_sync_status'] ?? ($result['status'] ?? ''));
+    $lastSyncStatus = (string) ($scanRow['last_sync_status'] ?? ($jobRow['status'] ?? ''));
     $lastSyncAt     = (string) ($scanRow['last_sync_at'] ?? '');
 
-    $payload['job'] = [
-        'job_id'             => (int) ($result['job_id'] ?? 0),
+    $payload['jobs'][] = [
+        'job_id'             => (int) ($jobRow['id'] ?? 0),
         'scan_internal_id'   => $scanInternalId,
         'scan_name'          => (string) ($scanRow['name'] ?? ('#' . $scanInternalId)),
-        'status'             => (string) ($result['status'] ?? ''),
-        'message'            => (string) ($result['message'] ?? ''),
-        'run_id'             => isset($result['run_id']) ? (int) $result['run_id'] : null,
+        'status'             => (string) ($jobRow['status'] ?? ''),
+        'message'            => (string) ($jobRow['message'] ?? ''),
+        'run_id'             => isset($jobRow['run_id']) ? (int) $jobRow['run_id'] : null,
         'last_sync_status'   => $lastSyncStatus,
         'last_sync_at'       => $lastSyncAt,
         'last_sync_bucket'   => Scan::statusBucket($lastSyncStatus),
         'last_sync_label'    => Scan::statusLabel($lastSyncStatus),
         'last_sync_relative' => Scan::relativeDate($lastSyncAt),
     ];
+}
+
+if ($payload['jobs'] !== []) {
+    $payload['job'] = $payload['jobs'][array_key_last($payload['jobs'])];
 }
 
 echo json_encode($payload, JSON_THROW_ON_ERROR);

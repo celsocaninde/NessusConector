@@ -454,7 +454,7 @@
         return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + '</svg>';
     }
 
-    // ----- Sync queue worker (live polling, no page reload) -----
+    // ----- Sync queue monitor (status polling only; cron does the heavy work) -----
     const queueConfig = root.dataset.nessusQueue ? safeJsonParse(root.dataset.nessusQueue) : null;
     if (queueConfig && queueConfig.url) {
         startSyncQueueWorker(queueConfig);
@@ -464,28 +464,11 @@
         const i18n = config.i18n || {};
         const queuePill = root.querySelector('[data-nessus-queue-pill]');
         const queuePillLabel = queuePill ? queuePill.querySelector('[data-nessus-queue-pill-label]') : null;
-        let progressBar = null;
         let pendingTimer = null;
         let consecutiveErrors = 0;
+        let lastCheckedAt = config.checkedAt || '';
 
         const STATUS_BUCKETS = ['success', 'running', 'warning', 'danger', 'muted', 'unknown'];
-
-        function ensureProgressBar() {
-            if (progressBar && progressBar.isConnected) {
-                return progressBar;
-            }
-            progressBar = document.createElement('div');
-            progressBar.className = 'nessus-progress';
-            document.body.appendChild(progressBar);
-            return progressBar;
-        }
-
-        function removeProgressBar() {
-            if (progressBar && progressBar.isConnected) {
-                progressBar.remove();
-            }
-            progressBar = null;
-        }
 
         function setQueuePill(count, variant) {
             if (!queuePill || !queuePillLabel) {
@@ -618,10 +601,11 @@
                 return;
             }
 
-            ensureProgressBar();
-
             const body = new URLSearchParams();
             body.set('_glpi_csrf_token', config.csrf || '');
+            if (lastCheckedAt) {
+                body.set('since', lastCheckedAt);
+            }
 
             try {
                 const response = await fetch(config.url, {
@@ -644,8 +628,12 @@
                 consecutiveErrors = 0;
 
                 if (data && typeof data === 'object') {
-                    if (data.processed && data.job) {
-                        reportJob(data.job);
+                    const jobs = Array.isArray(data.jobs) ? data.jobs : (data.job ? [data.job] : []);
+                    for (const job of jobs) {
+                        reportJob(job);
+                    }
+                    if (data.checked_at) {
+                        lastCheckedAt = String(data.checked_at);
                     }
 
                     const remaining = Math.max(0, parseInt(data.remaining, 10) || 0);
@@ -659,14 +647,7 @@
                         setQueuePill(0, 'warn');
                     }
 
-                    if (data.processed) {
-                        // Keep draining the queue as fast as we can.
-                        scheduleNext(150);
-                    } else {
-                        // Queue is empty. Slow down to idle pace.
-                        removeProgressBar();
-                        scheduleNext(config.idlePollMs || 15000);
-                    }
+                    scheduleNext(open > 0 || remaining > 0 ? 5000 : (config.idlePollMs || 15000));
                 } else {
                     throw new Error('Bad payload');
                 }
@@ -675,10 +656,9 @@
                 const backoff = Math.min(60000, 2000 * Math.pow(2, Math.min(5, consecutiveErrors)));
                 showToast({
                     type: 'error',
-                    message: i18n.errorMessage || 'Could not contact the sync worker. Will retry shortly.',
+                    message: i18n.errorMessage || 'Could not contact the sync queue status endpoint. Will retry shortly.',
                     ttl: 2600,
                 });
-                removeProgressBar();
                 scheduleNext(backoff);
             }
         }
@@ -698,21 +678,20 @@
             setQueuePill(current + 1, 'warn');
         };
         root._nessusSyncKick = () => {
-            scheduleNext(150);
+            scheduleNext(1000);
         };
 
         const openJobs = parseInt(config.openJobs, 10) || 0;
         if (openJobs > 0) {
             showToast({
                 type: 'info',
-                message: (i18n.startMessage || 'Processing %d pending synchronization job(s)…').replace('%d', String(openJobs)),
+                message: (i18n.startMessage || 'Monitoring %d queued synchronization job(s)…').replace('%d', String(openJobs)),
                 ttl: 2400,
             });
             setQueuePill(openJobs, 'warn');
-            scheduleNext(120);
+            scheduleNext(1000);
         } else {
-            // Even without pending jobs on load, poll idly so a user who queues a job in another tab
-            // (or via direct action) sees it processed without manually reloading.
+            // Poll idly so another tab or cron completion is reflected without reloading.
             scheduleNext(config.idlePollMs || 15000);
         }
     }
