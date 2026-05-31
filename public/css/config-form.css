@@ -3,7 +3,17 @@
     --nessus-radius-sm: 8px;
     --nessus-border: rgba(15, 23, 42, 0.08);
     --nessus-shadow-hover: 0 14px 32px -18px rgba(15, 23, 42, 0.35);
-    --nessus-primary: var(--tblr-primary, #0d6efd);
+    --nessus-primary: #0087f5;
+    --nessus-primary-strong: #0a6fd0;
+    --nessus-primary-rgb: 0, 135, 245;
+    --nessus-midnight: #041e42;
+    --nessus-midnight-2: #0a3a6b;
+    --nessus-neon: #26ff93;
+    --nessus-lucid: #00f0ff;
+    --nessus-gray: #8595a2;
+    --nessus-grad: linear-gradient(120deg, #041e42 0%, #0a3a6b 52%, #0087f5 100%);
+    --nessus-grad-soft: linear-gradient(120deg, rgba(4, 30, 66, 0.04), rgba(0, 135, 245, 0.08));
+    --nessus-glow: 0 18px 42px -18px rgba(4, 30, 66, 0.55);
     --nessus-muted: var(--tblr-text-muted, #6c757d);
     --nessus-surface: var(--tblr-bg-surface, #fff);
     --nessus-surface-soft: rgba(15, 23, 42, 0.025);
@@ -73,8 +83,8 @@
 }
 
 .nessus-config-card:focus-within {
-    border-color: rgba(13, 110, 253, 0.35);
-    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.08);
+    border-color: rgba(0, 135, 245, 0.35);
+    box-shadow: 0 0 0 3px rgba(0, 135, 245, 0.08);
 }
 
 .nessus-config-card--wide {
@@ -108,11 +118,11 @@
 }
 
 .nessus-config-card__icon--vm {
-    background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+    background: linear-gradient(135deg, #0087f5 0%, #041e42 100%);
 }
 
 .nessus-config-card__icon--was {
-    background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+    background: linear-gradient(135deg, #00b8c4 0%, #0087f5 100%);
 }
 
 .nessus-config-card__icon--asset {
@@ -206,9 +216,9 @@
 }
 
 .nessus-conn-pill--testing {
-    background: rgba(13, 110, 253, 0.1);
+    background: rgba(0, 135, 245, 0.1);
     color: var(--nessus-primary);
-    border-color: rgba(13, 110, 253, 0.2);
+    border-color: rgba(0, 135, 245, 0.2);
 }
 
 .nessus-conn-pill--testing .nessus-conn-pill__dot {
@@ -317,13 +327,13 @@
 }
 
 .nessus-config-input:hover:not(:focus) {
-    border-color: rgba(13, 110, 253, 0.25);
+    border-color: rgba(0, 135, 245, 0.25);
 }
 
 .nessus-config-input:focus {
     outline: none;
     border-color: var(--nessus-primary);
-    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.15);
+    box-shadow: 0 0 0 3px rgba(0, 135, 245, 0.15);
 }
 
 .nessus-config-input[aria-invalid="true"],
@@ -381,13 +391,13 @@
 
 .nessus-config-secret__toggle:hover {
     color: var(--nessus-primary);
-    background: rgba(13, 110, 253, 0.08);
+    background: rgba(0, 135, 245, 0.08);
 }
 
 .nessus-config-secret__toggle:focus-visible {
     outline: none;
     border-color: var(--nessus-primary);
-    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.15);
+    box-shadow: 0 0 0 3px rgba(0, 135, 245, 0.15);
 }
 
 .nessus-config-secret__icon {
@@ -430,8 +440,8 @@
 }
 
 .nessus-config-checkbox:hover {
-    border-color: rgba(13, 110, 253, 0.3);
-    background: rgba(13, 110, 253, 0.04);
+    border-color: rgba(0, 135, 245, 0.3);
+    background: rgba(0, 135, 245, 0.04);
 }
 
 .nessus-config-checkbox input {
@@ -476,12 +486,12 @@
 }
 
 .nessus-config-checkbox input:focus-visible + .nessus-config-checkbox__indicator {
-    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.18);
+    box-shadow: 0 0 0 3px rgba(0, 135, 245, 0.18);
 }
 
 .nessus-config-checkbox:has(input:checked) {
-    border-color: rgba(13, 110, 253, 0.45);
-    background: rgba(13, 110, 253, 0.06);
+    border-color: rgba(0, 135, 245, 0.45);
+    background: rgba(0, 135, 245, 0.06);
 }
 
 /* ---- Empty-state note for WAS card ---- */
@@ -534,9 +544,9 @@
 }
 
 .nessus-config-btn--primary:hover:not([disabled]) {
-    background: #0b5ed7;
+    background: #0a6fd0;
     transform: translateY(-1px);
-    box-shadow: 0 6px 14px -8px rgba(13, 110, 253, 0.6);
+    box-shadow: 0 6px 14px -8px rgba(0, 135, 245, 0.6);
 }
 
 .nessus-config-btn--ghost {
@@ -548,7 +558,7 @@
 .nessus-config-btn--ghost:hover:not([disabled]) {
     border-color: var(--nessus-primary);
     color: var(--nessus-primary);
-    background: rgba(13, 110, 253, 0.06);
+    background: rgba(0, 135, 245, 0.06);
 }
 
 .nessus-config-btn[data-loading="true"] {
@@ -625,3 +635,31 @@
         justify-content: center;
     }
 }
+
+/* ===== Tenable brand hero ===== */
+.nessus-config-page__hero {
+    position: relative;
+    overflow: hidden;
+    padding: 1.3rem 1.45rem;
+    border-radius: var(--nessus-radius);
+    background: var(--nessus-grad);
+    color: #fff;
+    box-shadow: var(--nessus-glow);
+}
+.nessus-config-page__hero::after {
+    content: "";
+    position: absolute;
+    top: -55%;
+    right: -6%;
+    width: 320px;
+    height: 320px;
+    background: radial-gradient(circle, rgba(38, 255, 147, 0.16), transparent 62%);
+    pointer-events: none;
+}
+.nessus-config-page__title,
+.nessus-config-page__subtitle {
+    position: relative;
+    z-index: 1;
+}
+.nessus-config-page__title { color: #fff; }
+.nessus-config-page__subtitle { color: rgba(255, 255, 255, 0.85); }

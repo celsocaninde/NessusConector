@@ -3,7 +3,17 @@
     --nessus-radius-sm: 8px;
     --nessus-border: rgba(15, 23, 42, 0.08);
     --nessus-shadow-hover: 0 14px 32px -18px rgba(15, 23, 42, 0.35);
-    --nessus-primary: var(--tblr-primary, #0d6efd);
+    --nessus-primary: #0087f5;
+    --nessus-primary-strong: #0a6fd0;
+    --nessus-primary-rgb: 0, 135, 245;
+    --nessus-midnight: #041e42;
+    --nessus-midnight-2: #0a3a6b;
+    --nessus-neon: #26ff93;
+    --nessus-lucid: #00f0ff;
+    --nessus-gray: #8595a2;
+    --nessus-grad: linear-gradient(120deg, #041e42 0%, #0a3a6b 52%, #0087f5 100%);
+    --nessus-grad-soft: linear-gradient(120deg, rgba(4, 30, 66, 0.04), rgba(0, 135, 245, 0.08));
+    --nessus-glow: 0 18px 42px -18px rgba(4, 30, 66, 0.55);
     --nessus-muted: var(--tblr-text-muted, #6c757d);
     --nessus-surface: var(--tblr-bg-surface, #fff);
 
@@ -27,10 +37,10 @@
     --sev-low-accent: #854d0e;
     --sev-low-soft: rgba(234, 179, 8, 0.16);
 
-    --sev-info-bg: linear-gradient(135deg, #6aa7df 0%, #1e40af 100%);
+    --sev-info-bg: linear-gradient(135deg, #3aa3f5 0%, #04357f 100%);
     --sev-info-color: #ffffff;
-    --sev-info-accent: #1e40af;
-    --sev-info-soft: rgba(13, 110, 253, 0.10);
+    --sev-info-accent: #0a6fd0;
+    --sev-info-soft: rgba(0, 135, 245, 0.10);
 }
 
 [data-bs-theme="dark"] {
@@ -88,7 +98,7 @@
     gap: 8px;
     padding: 5px 12px;
     border-radius: 999px;
-    background: rgba(13, 110, 253, 0.08);
+    background: rgba(0, 135, 245, 0.08);
     color: var(--nessus-primary);
     font-size: 0.8rem;
     font-weight: 600;
@@ -116,7 +126,7 @@
 .nessus-btn-back:hover {
     color: var(--nessus-primary);
     border-color: var(--nessus-primary);
-    background: rgba(13, 110, 253, 0.06);
+    background: rgba(0, 135, 245, 0.06);
     text-decoration: none;
 }
 
@@ -270,7 +280,7 @@
 .nessus-vuln-page__search input:focus {
     outline: none;
     border-color: var(--nessus-primary);
-    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.15);
+    box-shadow: 0 0 0 3px rgba(0, 135, 245, 0.15);
 }
 
 .nessus-vuln-page__filter {
@@ -323,7 +333,7 @@
 }
 
 .nessus-vuln-page__select-all:has(input:focus-visible) {
-    outline: 3px solid rgba(13, 110, 253, 0.18);
+    outline: 3px solid rgba(0, 135, 245, 0.18);
     outline-offset: 2px;
 }
 
@@ -372,7 +382,7 @@
 .nessus-vuln-row[data-severity="info"]::before     { background: var(--sev-info-accent); }
 
 .nessus-vuln-row:hover {
-    border-color: rgba(13, 110, 253, 0.35);
+    border-color: rgba(0, 135, 245, 0.35);
     box-shadow: var(--nessus-shadow-hover);
 }
 
@@ -381,8 +391,8 @@
 }
 
 .nessus-vuln-row[data-selected="true"] {
-    background: rgba(13, 110, 253, 0.05);
-    border-color: rgba(13, 110, 253, 0.45);
+    background: rgba(0, 135, 245, 0.05);
+    border-color: rgba(0, 135, 245, 0.45);
 }
 
 .nessus-vuln-row[data-selected="true"]::before {
@@ -480,7 +490,7 @@
 .nessus-vuln-row__meta-item a {
     color: inherit;
     text-decoration: underline;
-    text-decoration-color: rgba(13, 110, 253, 0.4);
+    text-decoration-color: rgba(0, 135, 245, 0.4);
     text-decoration-thickness: 1px;
     text-underline-offset: 2px;
 }
@@ -535,7 +545,7 @@
 .nessus-vuln-btn:hover {
     border-color: var(--nessus-primary);
     color: var(--nessus-primary);
-    background: rgba(13, 110, 253, 0.06);
+    background: rgba(0, 135, 245, 0.06);
     text-decoration: none;
 }
 
@@ -546,10 +556,10 @@
 }
 
 .nessus-vuln-btn--primary:hover {
-    background: #0b5ed7;
+    background: #0a6fd0;
     color: #fff;
     transform: translateY(-1px);
-    box-shadow: 0 6px 14px -8px rgba(13, 110, 253, 0.6);
+    box-shadow: 0 6px 14px -8px rgba(0, 135, 245, 0.6);
 }
 
 .nessus-vuln-btn svg {
@@ -638,7 +648,7 @@
 }
 
 .nessus-selection-bar button.is-primary:hover {
-    background: rgba(13, 110, 253, 0.3);
+    background: rgba(0, 135, 245, 0.3);
 }
 
 .nessus-toast-host {
@@ -693,15 +703,15 @@
 .nessus-modal__icon { width: 38px; height: 38px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .nessus-modal__icon svg { width: 20px; height: 20px; }
 .nessus-modal--danger .nessus-modal__icon { background: rgba(220, 53, 69, 0.12); color: #dc3545; }
-.nessus-modal--info .nessus-modal__icon { background: rgba(13, 110, 253, 0.12); color: var(--nessus-primary); }
+.nessus-modal--info .nessus-modal__icon { background: rgba(0, 135, 245, 0.12); color: var(--nessus-primary); }
 .nessus-modal__title { margin: 0; font-size: 1.05rem; font-weight: 600; }
 .nessus-modal__body { padding: 8px 20px 6px 70px; font-size: 0.9rem; line-height: 1.5; color: var(--nessus-muted); }
 .nessus-modal__footer { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 20px 18px; }
 .nessus-modal__footer button { padding: 7px 16px; border-radius: var(--nessus-radius-sm); border: 1px solid transparent; font-size: 0.86rem; font-weight: 500; cursor: pointer; transition: background 0.14s ease, transform 0.14s ease, box-shadow 0.14s ease; }
 .nessus-modal__footer .nessus-btn-outline { background: transparent; color: inherit; border-color: var(--nessus-border); }
-.nessus-modal__footer .nessus-btn-outline:hover { border-color: var(--nessus-primary); color: var(--nessus-primary); background: rgba(13,110,253,.06); }
+.nessus-modal__footer .nessus-btn-outline:hover { border-color: var(--nessus-primary); color: var(--nessus-primary); background: rgba(0, 135, 245,.06); }
 .nessus-modal__footer .nessus-btn-primary { background: var(--nessus-primary); color: #fff; }
-.nessus-modal__footer .nessus-btn-primary:hover { background: #0b5ed7; transform: translateY(-1px); box-shadow: 0 6px 14px -8px rgba(13, 110, 253, 0.6); }
+.nessus-modal__footer .nessus-btn-primary:hover { background: #0a6fd0; transform: translateY(-1px); box-shadow: 0 6px 14px -8px rgba(0, 135, 245, 0.6); }
 .nessus-modal__footer .nessus-btn-danger { background: #dc3545; color: #fff; }
 .nessus-modal__footer .nessus-btn-danger:hover { background: #bb2d3b; transform: translateY(-1px); box-shadow: 0 6px 14px -8px rgba(220, 53, 69, 0.6); }
 
@@ -717,7 +727,7 @@
     padding: 20px 24px;
     border-radius: var(--nessus-radius);
     border-left: 5px solid var(--nessus-primary);
-    background: linear-gradient(135deg, rgba(13,110,253,0.04) 0%, transparent 100%);
+    background: linear-gradient(135deg, rgba(0, 135, 245,0.04) 0%, transparent 100%);
     margin-bottom: 24px;
 }
 
@@ -826,8 +836,8 @@
     gap: 6px;
     padding: 5px 12px;
     border-radius: 7px;
-    background: rgba(13, 110, 253, 0.08);
-    border: 1px solid rgba(13, 110, 253, 0.2);
+    background: rgba(0, 135, 245, 0.08);
+    border: 1px solid rgba(0, 135, 245, 0.2);
     color: var(--nessus-primary);
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 0.78rem;
@@ -838,7 +848,7 @@
 }
 
 .nessus-vuln-detail__cve-chip:hover {
-    background: rgba(13, 110, 253, 0.16);
+    background: rgba(0, 135, 245, 0.16);
     border-color: var(--nessus-primary);
     text-decoration: none;
 }
@@ -909,7 +919,7 @@
 }
 
 .nessus-vuln-detail__kv-card:hover {
-    border-color: rgba(13, 110, 253, 0.3);
+    border-color: rgba(0, 135, 245, 0.3);
     transform: translateY(-1px);
 }
 
@@ -1001,7 +1011,7 @@
 .nessus-pagination__btn:hover {
     border-color: var(--nessus-primary);
     color: var(--nessus-primary);
-    background: rgba(13, 110, 253, 0.06);
+    background: rgba(0, 135, 245, 0.06);
     text-decoration: none;
 }
 
@@ -1088,4 +1098,31 @@
         margin-left: 0;
     }
 
+}
+
+/* ===== Tenable brand hero ===== */
+.nessus-vuln-page__hero {
+    position: relative;
+    overflow: hidden;
+    padding: 1.3rem 1.45rem;
+    border-radius: var(--nessus-radius);
+    background: var(--nessus-grad);
+    color: #fff;
+    box-shadow: var(--nessus-glow);
+}
+.nessus-vuln-page__hero::after {
+    content: "";
+    position: absolute;
+    top: -55%;
+    right: -6%;
+    width: 320px;
+    height: 320px;
+    background: radial-gradient(circle, rgba(38, 255, 147, 0.16), transparent 62%);
+    pointer-events: none;
+}
+.nessus-vuln-page__hero > * { position: relative; z-index: 1; }
+.nessus-vuln-page__hero .nessus-vuln-page__title { color: #fff; }
+.nessus-vuln-page__hero .nessus-vuln-page__scan-pill {
+    background: rgba(255, 255, 255, 0.16);
+    color: #fff;
 }

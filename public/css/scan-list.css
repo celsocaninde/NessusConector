@@ -3,7 +3,17 @@
     --nessus-radius-sm: 8px;
     --nessus-border: rgba(15, 23, 42, 0.08);
     --nessus-shadow-hover: 0 14px 32px -18px rgba(15, 23, 42, 0.35);
-    --nessus-primary: var(--tblr-primary, #0d6efd);
+    --nessus-primary: #0087f5;
+    --nessus-primary-strong: #0a6fd0;
+    --nessus-primary-rgb: 0, 135, 245;
+    --nessus-midnight: #041e42;
+    --nessus-midnight-2: #0a3a6b;
+    --nessus-neon: #26ff93;
+    --nessus-lucid: #00f0ff;
+    --nessus-gray: #8595a2;
+    --nessus-grad: linear-gradient(120deg, #041e42 0%, #0a3a6b 52%, #0087f5 100%);
+    --nessus-grad-soft: linear-gradient(120deg, rgba(4, 30, 66, 0.04), rgba(0, 135, 245, 0.08));
+    --nessus-glow: 0 18px 42px -18px rgba(4, 30, 66, 0.55);
     --nessus-muted: var(--tblr-text-muted, #6c757d);
     --nessus-surface: var(--tblr-bg-surface, #fff);
 }
@@ -53,7 +63,7 @@
     gap: 8px;
     padding: 5px 12px;
     border-radius: 999px;
-    background: rgba(13, 110, 253, 0.08);
+    background: rgba(0, 135, 245, 0.08);
     color: var(--nessus-primary);
     font-size: 0.78rem;
     font-weight: 600;
@@ -120,11 +130,11 @@
 }
 
 .nessus-btn-primary:hover {
-    background: #0b5ed7;
+    background: #0a6fd0;
     color: #fff;
     text-decoration: none;
     transform: translateY(-1px);
-    box-shadow: 0 6px 14px -8px rgba(13, 110, 253, 0.6);
+    box-shadow: 0 6px 14px -8px rgba(0, 135, 245, 0.6);
 }
 
 .nessus-btn-outline {
@@ -137,7 +147,7 @@
     border-color: var(--nessus-primary);
     color: var(--nessus-primary);
     text-decoration: none;
-    background: rgba(13, 110, 253, 0.06);
+    background: rgba(0, 135, 245, 0.06);
 }
 
 .nessus-btn-icon {
@@ -161,7 +171,7 @@
 }
 
 .nessus-btn-icon:hover {
-    background: rgba(13, 110, 253, 0.08);
+    background: rgba(0, 135, 245, 0.08);
     color: var(--nessus-primary);
 }
 
@@ -206,7 +216,7 @@
 .nessus-list-page__search:focus {
     outline: none;
     border-color: var(--nessus-primary);
-    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.15);
+    box-shadow: 0 0 0 3px rgba(0, 135, 245, 0.15);
 }
 
 .nessus-list-page__filter {
@@ -257,7 +267,7 @@
 }
 
 .nessus-list-row:hover {
-    border-color: rgba(13, 110, 253, 0.35);
+    border-color: rgba(0, 135, 245, 0.35);
     box-shadow: var(--nessus-shadow-hover);
 }
 
@@ -266,8 +276,8 @@
 }
 
 .nessus-list-row[data-selected="true"] {
-    background: rgba(13, 110, 253, 0.05);
-    border-color: rgba(13, 110, 253, 0.45);
+    background: rgba(0, 135, 245, 0.05);
+    border-color: rgba(0, 135, 245, 0.45);
 }
 
 .nessus-list-row[data-selected="true"]::before {
@@ -279,13 +289,13 @@
 }
 
 .nessus-list-row[data-nessus-syncing="true"] {
-    border-color: rgba(13, 110, 253, 0.45);
+    border-color: rgba(0, 135, 245, 0.45);
     background:
         linear-gradient(
             90deg,
-            rgba(13, 110, 253, 0.05) 0%,
-            rgba(13, 110, 253, 0.12) 40%,
-            rgba(13, 110, 253, 0.05) 80%
+            rgba(0, 135, 245, 0.05) 0%,
+            rgba(0, 135, 245, 0.12) 40%,
+            rgba(0, 135, 245, 0.05) 80%
         );
     background-size: 220% 100%;
     animation: nessus-row-syncing 1.6s ease-in-out infinite;
@@ -368,7 +378,7 @@
 }
 
 .nessus-source-badge--vm {
-    background: rgba(13, 110, 253, 0.12);
+    background: rgba(0, 135, 245, 0.12);
     color: var(--nessus-primary);
 }
 
@@ -427,9 +437,9 @@
 }
 
 .nessus-list-row__meta-item code:hover {
-    background: rgba(13, 110, 253, 0.12);
+    background: rgba(0, 135, 245, 0.12);
     color: var(--nessus-primary);
-    border-color: rgba(13, 110, 253, 0.2);
+    border-color: rgba(0, 135, 245, 0.2);
 }
 
 .nessus-list-row__meta-item code.is-copied {
@@ -476,7 +486,7 @@
 
 .nessus-status--running {
     color: var(--nessus-primary);
-    background: rgba(13, 110, 253, 0.12);
+    background: rgba(0, 135, 245, 0.12);
 }
 
 .nessus-status--running::before {
@@ -760,7 +770,7 @@
 }
 
 .nessus-modal--info .nessus-modal__icon {
-    background: rgba(13, 110, 253, 0.12);
+    background: rgba(0, 135, 245, 0.12);
     color: var(--nessus-primary);
 }
 
@@ -856,3 +866,103 @@
         margin-left: 0;
     }
 }
+
+/* ===== Tenable brand hero ===== */
+.nessus-list-page__hero {
+    position: relative;
+    overflow: hidden;
+    padding: 1.3rem 1.45rem;
+    border-radius: var(--nessus-radius);
+    background: var(--nessus-grad);
+    color: #fff;
+    box-shadow: var(--nessus-glow);
+}
+.nessus-list-page__hero::after {
+    content: "";
+    position: absolute;
+    top: -55%;
+    right: -6%;
+    width: 320px;
+    height: 320px;
+    background: radial-gradient(circle, rgba(38, 255, 147, 0.16), transparent 62%);
+    pointer-events: none;
+}
+.nessus-list-page__hero > * { position: relative; z-index: 1; }
+.nessus-list-page__hero .nessus-list-page__title { color: #fff; }
+.nessus-list-page__hero .nessus-stat-pill {
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+}
+.nessus-list-page__hero .nessus-stat-pill--warn {
+    background: rgba(255, 185, 0, 0.22);
+    color: #ffdf8a;
+}
+.nessus-list-page__hero .nessus-stat-pill--muted {
+    background: rgba(255, 255, 255, 0.10);
+    color: rgba(255, 255, 255, 0.8);
+}
+.nessus-list-page__hero .nessus-btn-outline {
+    border-color: rgba(255, 255, 255, 0.4);
+    color: #fff;
+}
+.nessus-list-page__hero .nessus-btn-outline:hover {
+    border-color: #fff;
+    color: var(--nessus-midnight);
+    background: #fff;
+}
+.nessus-list-page__hero .nessus-btn-primary {
+    box-shadow: 0 6px 18px -8px rgba(0, 0, 0, 0.5);
+}
+
+/* ===== Coverage report (VMs sem Nessus) ===== */
+.nessus-coverage-note {
+    margin: 0 0 1rem;
+    font-size: 0.85rem;
+    color: var(--nessus-muted);
+    max-width: 80ch;
+}
+.nessus-os-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.76rem;
+    font-weight: 600;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+.nessus-os-chip--linux {
+    background: rgba(0, 184, 196, 0.14);
+    color: #0a7782;
+}
+[data-bs-theme="dark"] .nessus-os-chip--linux { color: #3fd7e3; }
+.nessus-os-chip--winserver {
+    background: rgba(0, 135, 245, 0.12);
+    color: var(--nessus-primary);
+}
+.nessus-coverage-table th {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--nessus-muted);
+}
+.nessus-coverage-table td { vertical-align: middle; }
+.nessus-coverage-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 2.5rem 1rem;
+    text-align: center;
+    border: 1px dashed var(--nessus-border);
+    border-radius: var(--nessus-radius);
+    background: var(--nessus-grad-soft);
+}
+.nessus-coverage-empty i {
+    font-size: 2.2rem;
+    color: #0a7782;
+    margin-bottom: 0.2rem;
+}
+.nessus-coverage-empty strong { font-size: 1rem; }
+.nessus-coverage-empty span { color: var(--nessus-muted); font-size: 0.88rem; }

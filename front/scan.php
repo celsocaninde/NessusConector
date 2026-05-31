@@ -208,6 +208,7 @@ echo '<a class="nessus-btn-primary" href="scan.form.php">' . nessusglpi_scan_ico
 echo '<a class="nessus-btn-outline" href="scan.browser.php?source=' . Scan::SOURCE_NESSUS . '">' . nessusglpi_scan_icon('search') . '<span>' . Html::cleanInputText(__('Browse Nessus / Tenable VM scans', 'nessusglpi')) . '</span></a>';
 echo '<a class="nessus-btn-outline" href="scan.browser.php?source=' . Scan::SOURCE_WAS . '">' . nessusglpi_scan_icon('search') . '<span>' . Html::cleanInputText(__('Browse Tenable WAS scans', 'nessusglpi')) . '</span></a>';
 echo '<a class="nessus-btn-outline" href="scans.vulnerabilities.php">' . nessusglpi_scan_icon('shield') . '<span>' . Html::cleanInputText(__('Consolidated vulnerabilities', 'nessusglpi')) . '</span></a>';
+echo '<a class="nessus-btn-outline" href="coverage.php">' . nessusglpi_scan_icon('shield') . '<span>' . Html::cleanInputText(__('VMs without Nessus', 'nessusglpi')) . '</span></a>';
 echo '</div>';
 
 echo '</div>';

@@ -3,7 +3,17 @@
     --nessus-radius-sm: 8px;
     --nessus-border: rgba(15, 23, 42, 0.08);
     --nessus-shadow-hover: 0 14px 32px -18px rgba(15, 23, 42, 0.35);
-    --nessus-primary: var(--tblr-primary, #0d6efd);
+    --nessus-primary: #0087f5;
+    --nessus-primary-strong: #0a6fd0;
+    --nessus-primary-rgb: 0, 135, 245;
+    --nessus-midnight: #041e42;
+    --nessus-midnight-2: #0a3a6b;
+    --nessus-neon: #26ff93;
+    --nessus-lucid: #00f0ff;
+    --nessus-gray: #8595a2;
+    --nessus-grad: linear-gradient(120deg, #041e42 0%, #0a3a6b 52%, #0087f5 100%);
+    --nessus-grad-soft: linear-gradient(120deg, rgba(4, 30, 66, 0.04), rgba(0, 135, 245, 0.08));
+    --nessus-glow: 0 18px 42px -18px rgba(4, 30, 66, 0.55);
     --nessus-muted: var(--tblr-text-muted, #6c757d);
 }
 
@@ -40,7 +50,7 @@
     align-items: center;
     padding: 2px 10px;
     border-radius: 999px;
-    background: rgba(13, 110, 253, 0.1);
+    background: rgba(0, 135, 245, 0.1);
     color: var(--nessus-primary);
     font-size: 0.78rem;
     font-weight: 600;
@@ -81,7 +91,7 @@
 .nessus-browser__source-tabs a.is-active {
     background: var(--nessus-primary);
     color: #fff;
-    box-shadow: 0 6px 14px -8px rgba(13, 110, 253, 0.65);
+    box-shadow: 0 6px 14px -8px rgba(0, 135, 245, 0.65);
 }
 
 .nessus-browser__toolbar {
@@ -115,7 +125,7 @@
 .nessus-browser__search input:focus {
     outline: none;
     border-color: var(--nessus-primary);
-    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.15);
+    box-shadow: 0 0 0 3px rgba(0, 135, 245, 0.15);
 }
 
 .nessus-browser__status-filter {
@@ -140,7 +150,7 @@
 
 .nessus-browser__clear:hover {
     color: var(--nessus-primary);
-    background: rgba(13, 110, 253, 0.08);
+    background: rgba(0, 135, 245, 0.08);
 }
 
 .nessus-browser__meta {
@@ -183,7 +193,7 @@
     left: 0;
     width: 3px;
     height: 100%;
-    background: linear-gradient(180deg, var(--nessus-primary), rgba(13, 110, 253, 0));
+    background: linear-gradient(180deg, var(--nessus-primary), rgba(0, 135, 245, 0));
     opacity: 0;
     transition: opacity 0.16s ease;
 }
@@ -191,7 +201,7 @@
 .nessus-scan-card:hover {
     transform: translateY(-1px);
     box-shadow: var(--nessus-shadow-hover);
-    border-color: rgba(13, 110, 253, 0.35);
+    border-color: rgba(0, 135, 245, 0.35);
 }
 
 .nessus-scan-card:hover::before {
@@ -258,9 +268,9 @@
 }
 
 .nessus-scan-card__id:hover {
-    background: rgba(13, 110, 253, 0.12);
+    background: rgba(0, 135, 245, 0.12);
     color: var(--nessus-primary);
-    border-color: rgba(13, 110, 253, 0.2);
+    border-color: rgba(0, 135, 245, 0.2);
 }
 
 .nessus-scan-card__id.is-copied {
@@ -310,11 +320,11 @@
 }
 
 .nessus-scan-card__cta:hover {
-    background: #0b5ed7;
+    background: #0a6fd0;
     color: #fff;
     text-decoration: none;
     transform: translateY(-1px);
-    box-shadow: 0 6px 14px -8px rgba(13, 110, 253, 0.6);
+    box-shadow: 0 6px 14px -8px rgba(0, 135, 245, 0.6);
 }
 
 .nessus-scan-card__cta svg {
@@ -357,7 +367,7 @@
 
 .nessus-status--running {
     color: var(--nessus-primary);
-    background: rgba(13, 110, 253, 0.12);
+    background: rgba(0, 135, 245, 0.12);
 }
 
 .nessus-status--running::before {
@@ -472,4 +482,55 @@
     .nessus-scan-grid {
         grid-template-columns: 1fr;
     }
+}
+
+/* ===== Tenable brand header ===== */
+.nessus-browser__header {
+    position: relative;
+    overflow: hidden;
+    padding: 1.25rem 1.4rem;
+    border-radius: var(--nessus-radius);
+    background: var(--nessus-grad);
+    color: #fff;
+    box-shadow: var(--nessus-glow);
+}
+.nessus-browser__header::after {
+    content: "";
+    position: absolute;
+    top: -55%;
+    right: -6%;
+    width: 300px;
+    height: 300px;
+    background: radial-gradient(circle, rgba(38, 255, 147, 0.16), transparent 62%);
+    pointer-events: none;
+}
+.nessus-browser__header > * { position: relative; z-index: 1; }
+.nessus-browser__header .nessus-browser__title { color: #fff; }
+.nessus-browser__header .nessus-browser__title-count {
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
+}
+.nessus-browser__header .nessus-browser__source-tabs {
+    background: rgba(255, 255, 255, 0.12);
+}
+.nessus-browser__header .nessus-browser__source-tabs a {
+    color: rgba(255, 255, 255, 0.85);
+}
+.nessus-browser__header .nessus-browser__source-tabs a:hover {
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+}
+.nessus-browser__header .nessus-browser__source-tabs a.is-active {
+    background: #fff;
+    color: var(--nessus-midnight);
+    box-shadow: 0 6px 14px -8px rgba(0, 0, 0, 0.5);
+}
+.nessus-browser__header .btn-outline-secondary {
+    border-color: rgba(255, 255, 255, 0.4);
+    color: #fff;
+}
+.nessus-browser__header .btn-outline-secondary:hover {
+    background: #fff;
+    color: var(--nessus-midnight);
+    border-color: #fff;
 }

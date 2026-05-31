@@ -383,6 +383,13 @@ class Scan extends CommonDBTM
                         'search' => '/plugins/nessusglpi/front/vulnerability.php',
                     ],
                 ],
+                'coverage' => [
+                    'title' => __('Coverage (VMs without Nessus)', 'nessusglpi'),
+                    'page'  => '/plugins/nessusglpi/front/coverage.php',
+                    'links' => [
+                        'search' => '/plugins/nessusglpi/front/coverage.php',
+                    ],
+                ],
                 ScanRun::class => [
                     'title' => __('Scan history', 'nessusglpi'),
                     'page'  => '/plugins/nessusglpi/front/scanrun.php',

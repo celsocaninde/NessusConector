@@ -3,7 +3,17 @@
     --nessus-radius-sm: 8px;
     --nessus-border: rgba(15, 23, 42, 0.08);
     --nessus-shadow-hover: 0 14px 32px -18px rgba(15, 23, 42, 0.35);
-    --nessus-primary: var(--tblr-primary, #0d6efd);
+    --nessus-primary: #0087f5;
+    --nessus-primary-strong: #0a6fd0;
+    --nessus-primary-rgb: 0, 135, 245;
+    --nessus-midnight: #041e42;
+    --nessus-midnight-2: #0a3a6b;
+    --nessus-neon: #26ff93;
+    --nessus-lucid: #00f0ff;
+    --nessus-gray: #8595a2;
+    --nessus-grad: linear-gradient(120deg, #041e42 0%, #0a3a6b 52%, #0087f5 100%);
+    --nessus-grad-soft: linear-gradient(120deg, rgba(4, 30, 66, 0.04), rgba(0, 135, 245, 0.08));
+    --nessus-glow: 0 18px 42px -18px rgba(4, 30, 66, 0.55);
     --nessus-muted: var(--tblr-text-muted, #6c757d);
     --nessus-surface: var(--tblr-bg-surface, #fff);
     --nessus-surface-soft: rgba(15, 23, 42, 0.025);
@@ -64,7 +74,7 @@
 .nessus-scan-form-hero__back:hover {
     border-color: var(--nessus-primary);
     color: var(--nessus-primary);
-    background: rgba(13, 110, 253, 0.06);
+    background: rgba(0, 135, 245, 0.06);
 }
 
 .nessus-scan-form-hero__title {
@@ -106,9 +116,9 @@
 }
 
 .nessus-scan-form-alert--info {
-    background: rgba(13, 110, 253, 0.08);
+    background: rgba(0, 135, 245, 0.08);
     color: var(--nessus-primary);
-    border-color: rgba(13, 110, 253, 0.2);
+    border-color: rgba(0, 135, 245, 0.2);
 }
 
 .nessus-scan-form-alert--danger {
@@ -136,8 +146,8 @@
 }
 
 .nessus-scan-form-card:focus-within {
-    border-color: rgba(13, 110, 253, 0.35);
-    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.08);
+    border-color: rgba(0, 135, 245, 0.35);
+    box-shadow: 0 0 0 3px rgba(0, 135, 245, 0.08);
 }
 
 .nessus-scan-form-card__head {
@@ -167,7 +177,7 @@
 }
 
 .nessus-scan-form-card__icon--source {
-    background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+    background: linear-gradient(135deg, #0087f5 0%, #041e42 100%);
 }
 
 .nessus-scan-form-card__icon--import {
@@ -243,13 +253,13 @@
 }
 
 .nessus-scan-form-input:hover:not(:focus) {
-    border-color: rgba(13, 110, 253, 0.25);
+    border-color: rgba(0, 135, 245, 0.25);
 }
 
 .nessus-scan-form-input:focus {
     outline: none;
     border-color: var(--nessus-primary);
-    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.15);
+    box-shadow: 0 0 0 3px rgba(0, 135, 245, 0.15);
 }
 
 .nessus-scan-form-input[aria-invalid="true"] {
@@ -303,18 +313,18 @@
 }
 
 .nessus-scan-form-source__option:hover {
-    border-color: rgba(13, 110, 253, 0.4);
-    background: rgba(13, 110, 253, 0.04);
+    border-color: rgba(0, 135, 245, 0.4);
+    background: rgba(0, 135, 245, 0.04);
 }
 
 .nessus-scan-form-source__option[data-active="true"] {
     border-color: var(--nessus-primary);
-    background: rgba(13, 110, 253, 0.07);
-    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.12);
+    background: rgba(0, 135, 245, 0.07);
+    box-shadow: 0 0 0 3px rgba(0, 135, 245, 0.12);
 }
 
 .nessus-scan-form-source__option--was[data-active="true"] {
-    border-color: #7c3aed;
+    border-color: #00b8c4;
     background: rgba(124, 58, 237, 0.07);
     box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
 }
@@ -341,11 +351,11 @@
 }
 
 .nessus-scan-form-source__option--vm[data-active="true"] .nessus-scan-form-source__icon {
-    background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+    background: linear-gradient(135deg, #0087f5 0%, #041e42 100%);
 }
 
 .nessus-scan-form-source__option--was[data-active="true"] .nessus-scan-form-source__icon {
-    background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+    background: linear-gradient(135deg, #00b8c4 0%, #0087f5 100%);
 }
 
 .nessus-scan-form-source__icon svg {
@@ -505,7 +515,7 @@
 }
 
 .nessus-scan-form-severity:hover {
-    border-color: rgba(13, 110, 253, 0.35);
+    border-color: rgba(0, 135, 245, 0.35);
 }
 
 .nessus-scan-form-severity:has(input:checked) .nessus-scan-form-severity__dot {
@@ -537,10 +547,10 @@
     border-color: rgba(234, 179, 8, 0.55);
 }
 
-.nessus-scan-form-severity--info { color: #1e40af; }
+.nessus-scan-form-severity--info { color: #0a6fd0; }
 .nessus-scan-form-severity--info:has(input:checked) {
-    background: rgba(13, 110, 253, 0.08);
-    border-color: rgba(13, 110, 253, 0.45);
+    background: rgba(0, 135, 245, 0.08);
+    border-color: rgba(0, 135, 245, 0.45);
 }
 
 [data-bs-theme="dark"] .nessus-scan-form-severity--medium { color: #fbbf24; }
@@ -609,10 +619,10 @@
 }
 
 .nessus-scan-form-btn--primary:hover:not([disabled]) {
-    background: #0b5ed7;
+    background: #0a6fd0;
     color: #fff;
     transform: translateY(-1px);
-    box-shadow: 0 6px 14px -8px rgba(13, 110, 253, 0.6);
+    box-shadow: 0 6px 14px -8px rgba(0, 135, 245, 0.6);
 }
 
 .nessus-scan-form-btn--ghost {
@@ -624,7 +634,7 @@
 .nessus-scan-form-btn--ghost:hover:not([disabled]) {
     border-color: var(--nessus-primary);
     color: var(--nessus-primary);
-    background: rgba(13, 110, 253, 0.06);
+    background: rgba(0, 135, 245, 0.06);
 }
 
 .nessus-scan-form-btn--verify {
@@ -699,4 +709,47 @@
         width: 100%;
         justify-content: center;
     }
+}
+
+/* ===== Tenable brand hero ===== */
+.nessus-scan-form-hero {
+    position: relative;
+    overflow: hidden;
+    padding: 1.25rem 1.4rem;
+    border-radius: var(--nessus-radius);
+    background: var(--nessus-grad);
+    color: #fff;
+    box-shadow: var(--nessus-glow);
+}
+.nessus-scan-form-hero::after {
+    content: "";
+    position: absolute;
+    top: -55%;
+    right: -6%;
+    width: 300px;
+    height: 300px;
+    background: radial-gradient(circle, rgba(38, 255, 147, 0.16), transparent 62%);
+    pointer-events: none;
+}
+.nessus-scan-form-hero > * { position: relative; z-index: 1; }
+.nessus-scan-form-hero__title { color: #fff; }
+.nessus-scan-form-hero__subtitle { color: rgba(255, 255, 255, 0.82); }
+.nessus-scan-form-hero__back {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.25);
+    color: #fff;
+}
+.nessus-scan-form-hero__back:hover {
+    background: rgba(255, 255, 255, 0.22);
+    border-color: rgba(255, 255, 255, 0.5);
+    color: #fff;
+}
+.nessus-scan-form-hero .nessus-scan-form-btn--ghost {
+    border-color: rgba(255, 255, 255, 0.4);
+    color: #fff;
+}
+.nessus-scan-form-hero .nessus-scan-form-btn--ghost:hover:not([disabled]) {
+    background: #fff;
+    color: var(--nessus-midnight);
+    border-color: #fff;
 }
