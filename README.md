@@ -6,6 +6,8 @@
 
 **Nessus Conector** is a GLPI 11 plugin that pulls vulnerability data from **Tenable** products, links every finding to the matching GLPI asset, keeps a full synchronization history, and turns vulnerabilities into actionable GLPI tickets — automatically opening them when a flaw appears and resolving them when it is gone.
 
+🏷️ Version: `1.4.0` · Authors: celsocaninde / Claude (fork of [magaiverpr/NessusConector](https://github.com/magaiverpr/NessusConector))
+
 It supports two Tenable sources out of the box:
 
 | Source | What it imports | API family |
@@ -57,10 +59,41 @@ It supports two Tenable sources out of the box:
 
 ---
 
+## 📊 Executive Report (v1.4.0 — NEW)
+
+A premium, board-ready report page built with full Tenable branding.
+
+Access via **Plugins → Nessus Conector → Scans → Executive Report** button, or directly at `front/report.php`.
+
+| Section | Description |
+| --- | --- |
+| 🎯 Risk Index gauge | `conic-gradient` donut showing weighted exposure score (0–100 %) with semantic label |
+| 📅 Period selector | **7 / 30 / 90 day** pill buttons — **all data queries filter by `first_seen_at`** |
+| 📦 KPI cards | Total vulns in period, Risk Index, affected hosts, linked tickets |
+| 📊 Severity bars | Colour-coded bars (Critical → Info) with Tenable official palette |
+| 🖥️ Top 10 hosts | Most exposed hosts ranked by critical → high → total, with per-row severity breakdown |
+| 🔬 Top 8 critical/high vulns | Plugin names grouped and counted across the fleet |
+| 📈 Discovery trend | Daily bar chart for the selected period |
+| 📡 Scans status | Last scan date and status for every configured scan |
+
+**Risk Index** = weighted vuln score (critical×10 + high×3 + medium) ÷ max possible × 100
+
+| Range | Colour | Label |
+| --- | --- | --- |
+| ≤ 25 % | 🟢 Green | Low Exposure |
+| ≤ 50 % | 🟡 Amber | Moderate Exposure |
+| ≤ 75 % | 🔴 Red | High Exposure |
+| > 75 % | 🟥 Dark Red | Critical Exposure |
+
+**Print / PDF**: all GLPI navigation is hidden via `@media print`, so `Ctrl+P` / browser print produces a clean multi-page report.
+
+---
+
 ## 🆕 What this fork adds
 
 On top of the original dual-source (VM + WAS) plugin, this fork focuses on production-readiness:
 
+- 📊 **Executive report** (`v1.4.0`) — full-width Tenable-branded page with Risk Index gauge, period filter, top hosts and discovery trend.
 - 🔐 **Encrypted API secrets** (`GLPIKey`), with transparent fallback for pre-existing plaintext values.
 - ⏱️ **Persistent cron worker** for unattended synchronization (`queue` + `autosync`).
 - ✅ **Auto-resolution** of tickets whose vulnerability is no longer detected.
@@ -239,13 +272,36 @@ A detailed step-by-step technical guide is available in [`COMO_FUNCIONA.md`](COM
 
 ---
 
+## 📅 Changelog
+
+### v1.4.0
+- 📊 New executive report (`front/report.php`) with full Tenable branding, Risk Index donut gauge, period selector (7/30/90 days) and all queries filtered by `first_seen_at`
+- 🖥️ Top 10 most exposed hosts table with per-severity breakdown
+- 🔬 Top 8 critical/high vulnerabilities across the fleet
+- 📈 Vulnerability discovery trend chart (daily bars)
+- 🎯 Risk Index: weighted score (critical×10 + high×3 + medium) relative to host count
+- 🔘 "Executive Report" button added to the scan list page
+- 🛠️ `overflow: hidden` applied on all chart containers to prevent label overflow
+
+### v1.3.x
+- ⚙️ Background sync worker (`queue` cron, every 5 min)
+- ✅ Automatic ticket resolution when vulnerability clears
+- 🔐 Encrypted API secrets with `GLPIKey`
+- 📋 Activity / audit log viewer
+- 🧪 Automated test suite
+
+### v1.0.0
+- 🚀 Initial dual-source release (Nessus VM + Tenable WAS)
+
+---
+
 ## 🙏 Credits
 
 This plugin stands on the work of the original authors — please keep crediting them:
 
 - 🏁 **Original project:** [**magaiverpr**](https://github.com/magaiverpr/NessusConector) — the upstream *NessusConector* this work is forked from.
 - 🧱 **Dual-source (VM + WAS) plugin author:** **Daniel Berton**.
-- 🔧 **This fork** adds the background cron worker, secret encryption, automatic ticket resolution, the activity log and the test suite.
+- 🔧 **This fork** adds the executive report, background cron worker, secret encryption, automatic ticket resolution, the activity log and the test suite.
 
 Upstream repository: <https://github.com/magaiverpr/NessusConector>
 
