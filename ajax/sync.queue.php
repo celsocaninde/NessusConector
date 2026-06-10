@@ -13,7 +13,11 @@ header('Content-Type: application/json; charset=utf-8');
 
 $entityIds = Scan::getVisibleEntityIds();
 $service   = new SyncJobService();
-$finishedSince = trim((string) ($_POST['since'] ?? ''));
+// Read-only status poll: served over GET so it is exempt from CSRF validation
+// (GLPI only enforces CSRF on unsafe methods). This prevents the polling loop
+// from consuming the page's one-time CSRF token, which previously broke both
+// the queue poll and the per-scan sync forms that share that token.
+$finishedSince = trim((string) ($_GET['since'] ?? $_POST['since'] ?? ''));
 
 $recentJobs = $service->getRecentlyFinishedJobs($entityIds, $finishedSince);
 

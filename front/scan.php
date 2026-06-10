@@ -209,6 +209,8 @@ echo '<a class="nessus-btn-outline" href="scan.browser.php?source=' . Scan::SOUR
 echo '<a class="nessus-btn-outline" href="scan.browser.php?source=' . Scan::SOURCE_WAS . '">' . nessusglpi_scan_icon('search') . '<span>' . Html::cleanInputText(__('Browse Tenable WAS scans', 'nessusglpi')) . '</span></a>';
 echo '<a class="nessus-btn-outline" href="scans.vulnerabilities.php">' . nessusglpi_scan_icon('shield') . '<span>' . Html::cleanInputText(__('Consolidated vulnerabilities', 'nessusglpi')) . '</span></a>';
 echo '<a class="nessus-btn-outline" href="coverage.php">' . nessusglpi_scan_icon('shield') . '<span>' . Html::cleanInputText(__('VMs without Nessus', 'nessusglpi')) . '</span></a>';
+echo '<a class="nessus-btn-outline" href="report.php" style="background:#041e42;border-color:#041e42;color:#26ff93;font-weight:700" title="Relatório executivo com índice de risco, severidades e tendências">'
+    . nessusglpi_scan_icon('chart') . '<span>Relatório Executivo</span></a>';
 echo '</div>';
 
 echo '</div>';

@@ -601,21 +601,23 @@
                 return;
             }
 
-            const body = new URLSearchParams();
-            body.set('_glpi_csrf_token', config.csrf || '');
+            // Read-only status poll => GET, so it does not consume the page's
+            // one-time CSRF token (which is shared by the sync action forms).
+            const params = new URLSearchParams();
             if (lastCheckedAt) {
-                body.set('since', lastCheckedAt);
+                params.set('since', lastCheckedAt);
             }
+            const query = params.toString();
+            const requestUrl = query ? `${config.url}?${query}` : config.url;
 
             try {
-                const response = await fetch(config.url, {
-                    method: 'POST',
+                const response = await fetch(requestUrl, {
+                    method: 'GET',
                     credentials: 'same-origin',
                     headers: {
                         'Accept': 'application/json',
-                        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                        'X-Requested-With': 'XMLHttpRequest',
                     },
-                    body: body.toString(),
                 });
 
                 let data = null;
