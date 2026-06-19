@@ -32,10 +32,10 @@ $sevTotals = ['critical' => 0, 'high' => 0, 'medium' => 0, 'low' => 0, 'info' =>
 $sevLabels = ['critical' => 'Crítica', 'high' => 'Alta', 'medium' => 'Média', 'low' => 'Baixa', 'info' => 'Info'];
 $sevColors = [
     'critical' => ['bg' => '#8f233f', 'fg' => '#fff'],
-    'high'     => ['bg' => '#d94f4f', 'fg' => '#fff'],
-    'medium'   => ['bg' => '#f6a14a', 'fg' => '#1f2937'],
-    'low'      => ['bg' => '#f2d15c', 'fg' => '#1f2937'],
-    'info'     => ['bg' => '#6aa7df', 'fg' => '#0f172a'],
+    'high'     => ['bg' => '#b91c1c', 'fg' => '#fff'],
+    'medium'   => ['bg' => '#d97706', 'fg' => '#fff'],
+    'low'      => ['bg' => '#854d0e', 'fg' => '#fff'],
+    'info'     => ['bg' => '#0a6fd0', 'fg' => '#fff'],
 ];
 
 $keyMap = [
@@ -212,6 +212,22 @@ $dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 $maxSev   = max(1, $totalVulns);
 $rootDoc  = (string)($CFG_GLPI['root_doc'] ?? '');
 
+// ── Donut chart conic-gradient ──────────────────────────────────────────────
+$donutStops = [];
+$cumPct     = 0;
+foreach (['critical', 'high', 'medium', 'low', 'info'] as $sevKey) {
+    $cnt = $sevTotals[$sevKey] ?? 0;
+    if ($cnt <= 0) continue;
+    $pct  = $totalVulns > 0 ? ($cnt / $totalVulns * 100) : 0;
+    $from = round($cumPct, 3);
+    $to   = round($cumPct + $pct, 3);
+    $donutStops[] = "{$sevColors[$sevKey]['bg']} {$from}% {$to}%";
+    $cumPct += $pct;
+}
+$donutGradient = count($donutStops) > 0
+    ? 'conic-gradient(' . implode(', ', $donutStops) . ')'
+    : 'conic-gradient(#e2e8f0 0% 100%)';
+
 Html::header('Nessus – Relatório Executivo', '', 'plugins', 'nessusglpi', 'report');
 ?>
 <style>
@@ -273,21 +289,65 @@ Html::header('Nessus – Relatório Executivo', '', 'plugins', 'nessusglpi', 're
 .nr-hstat__val.warn { color: #fde68a; }
 .nr-hstat__lbl { font-size: 10px; color: #93c5fd; text-transform: uppercase; letter-spacing: 1.5px; }
 
-/* ── Severity Bars ────────────────────────────────────────────── */
-.nr-sev-card { background: #fff; border-radius: 12px; padding: 24px 26px; margin-bottom: 20px; }
+/* ── Severity Exposure Panel v2 (donut + stat cards) ─────────── */
+.nr-sev2 { background: #fff; border-radius: 12px; padding: 24px 26px; margin-bottom: 20px; }
 .nr-section-title { font-size: 11px; font-weight: 700; letter-spacing: 3.5px;
                     text-transform: uppercase; color: #94a3b8; margin-bottom: 18px; }
-.nr-sev-row { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
-.nr-sev-name { min-width: 74px; }
-.nr-sev-badge { display: inline-block; padding: 4px 14px; border-radius: 20px;
-                font-size: 12px; font-weight: 700; text-align: center; width: 100%; box-sizing: border-box; }
-.nr-sev-bar-wrap { flex: 1; background: #f1f5f9; border-radius: 6px; height: 26px;
-                   overflow: hidden; position: relative; }
-.nr-sev-bar { height: 100%; border-radius: 6px; display: flex; align-items: center;
-              padding-left: 10px; transition: width .5s; }
-.nr-sev-bar-num { font-size: 12px; font-weight: 800; }
-.nr-sev-pct { min-width: 46px; text-align: right; font-size: 13px; color: #64748b; font-weight: 600; }
-.nr-sev-count { min-width: 42px; text-align: right; font-size: 15px; font-weight: 800; color: #1e293b; }
+
+/* 5 stat cards row */
+.nr-sev2__stat-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 22px; }
+.nr-sev2__stat {
+    border-radius: 10px; overflow: hidden;
+    box-shadow: 0 2px 10px -4px rgba(0,0,0,.18);
+    transition: transform .15s, box-shadow .15s;
+}
+.nr-sev2__stat:hover { transform: translateY(-3px); box-shadow: 0 10px 26px -8px rgba(0,0,0,.26); }
+.nr-sev2__stat-hdr { padding: 8px 14px; font-size: 10px; font-weight: 800;
+                     letter-spacing: 2.5px; text-transform: uppercase; }
+.nr-sev2__stat-body { padding: 10px 14px 14px; background: #fff; }
+.nr-sev2__stat-num  { font-size: 2.6rem; font-weight: 900; line-height: 1; letter-spacing: -1px; }
+.nr-sev2__stat-pct  { font-size: 11px; color: #94a3b8; font-weight: 600; margin-top: 5px; }
+
+/* Donut + legend row */
+.nr-sev2__lower { display: flex; gap: 36px; align-items: center; }
+.nr-sev2__donut-wrap { flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.nr-sev2__donut {
+    width: 168px; height: 168px; border-radius: 50%; position: relative;
+    box-shadow: 0 6px 24px -8px rgba(0,0,0,.22);
+}
+.nr-sev2__donut-inner {
+    position: absolute; inset: 30px; background: #f8fafc; border-radius: 50%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    box-shadow: inset 0 2px 8px -4px rgba(0,0,0,.1);
+}
+.nr-sev2__donut-total { font-size: 1.9rem; font-weight: 900; color: #041e42; line-height: 1; }
+.nr-sev2__donut-sub   { font-size: 0.64rem; color: #94a3b8; text-transform: uppercase;
+                         letter-spacing: 1.5px; margin-top: 3px; }
+
+/* Legend table */
+.nr-sev2__legend { flex: 1; display: flex; flex-direction: column; gap: 9px; }
+.nr-sev2__legend-row { display: flex; align-items: center; gap: 10px; }
+.nr-sev2__legend-dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
+.nr-sev2__legend-name { font-weight: 700; font-size: 13px; color: #1e293b; min-width: 60px; }
+.nr-sev2__legend-count { font-size: 14px; font-weight: 800; color: #041e42; min-width: 44px; text-align: right; }
+.nr-sev2__legend-pct { font-size: 12px; color: #94a3b8; min-width: 38px; text-align: right; }
+.nr-sev2__legend-bar { flex: 1; height: 7px; background: #f1f5f9; border-radius: 4px; overflow: hidden; margin-left: 4px; }
+.nr-sev2__legend-bar-fill { height: 100%; border-radius: 4px; transition: width .55s; }
+
+/* Distribution bar */
+.nr-sev2__bar { margin-top: 22px; display: flex; height: 40px; border-radius: 8px;
+                overflow: hidden; box-shadow: 0 2px 10px -4px rgba(0,0,0,.15); }
+.nr-sev2__bar-seg {
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800; color: #fff; min-width: 26px;
+    transition: filter .15s;
+}
+.nr-sev2__bar-seg:hover { filter: brightness(1.1); }
+
+@media (max-width: 860px) {
+    .nr-sev2__stat-row { grid-template-columns: repeat(3, 1fr); }
+    .nr-sev2__lower    { flex-direction: column; align-items: stretch; }
+}
 
 /* ── KPI Cards ────────────────────────────────────────────────── */
 .nr-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
@@ -421,33 +481,70 @@ Html::header('Nessus – Relatório Executivo', '', 'plugins', 'nessusglpi', 're
       </div>
     </div>
 
-    <!-- SEVERITY DISTRIBUTION -->
-    <div class="nr-sev-card">
-      <div class="nr-section-title">Distribuição por Severidade</div>
-      <?php foreach ($sevTotals as $key => $count):
-        if ($count === 0 && $key === 'info') continue;
-        $pctVal = $maxSev > 0 ? (int)max(1, round($count / $maxSev * 100)) : 0;
-        $cl = $sevColors[$key];
-        $lbl = $sevLabels[$key];
-        $showInBar = $pctVal >= 8;
-      ?>
-      <div class="nr-sev-row">
-        <div class="nr-sev-name">
-          <span class="nr-sbadge" style="background:<?= $cl['bg'] ?>;color:<?= $cl['fg'] ?>"><?= $lbl ?></span>
-        </div>
-        <div class="nr-sev-bar-wrap">
-          <div class="nr-sev-bar" style="width:<?= $pctVal ?>%;background:<?= $cl['bg'] ?>">
-            <?php if ($showInBar): ?>
-            <span class="nr-sev-bar-num" style="color:<?= $cl['fg'] ?>"><?= $count ?></span>
-            <?php endif; ?>
+    <!-- SEVERITY EXPOSURE PANEL v2 (Grafana v5 style) -->
+    <div class="nr-sev2">
+      <div class="nr-section-title">Exposição por Severidade</div>
+
+      <!-- 5 stat cards -->
+      <div class="nr-sev2__stat-row">
+        <?php foreach ($sevTotals as $key => $count):
+          $cl  = $sevColors[$key];
+          $lbl = $sevLabels[$key];
+          $pct = $totalVulns > 0 ? (int)round($count / $totalVulns * 100) : 0;
+        ?>
+        <div class="nr-sev2__stat">
+          <div class="nr-sev2__stat-hdr" style="background:<?= $cl['bg'] ?>;color:<?= $cl['fg'] ?>"><?= $h($lbl) ?></div>
+          <div class="nr-sev2__stat-body">
+            <div class="nr-sev2__stat-num" style="color:<?= $cl['bg'] ?>"><?= $count ?></div>
+            <div class="nr-sev2__stat-pct"><?= $pct ?>% do total</div>
           </div>
         </div>
-        <?php if (!$showInBar): ?>
-        <span class="nr-sev-count"><?= $count ?></span>
-        <?php endif; ?>
-        <span class="nr-sev-pct"><?= $maxSev > 0 ? (int)round($count / $maxSev * 100) : 0 ?>%</span>
+        <?php endforeach; ?>
       </div>
-      <?php endforeach; ?>
+
+      <!-- Donut + legend -->
+      <div class="nr-sev2__lower">
+        <div class="nr-sev2__donut-wrap">
+          <div class="nr-sev2__donut" style="background:<?= $donutGradient ?>">
+            <div class="nr-sev2__donut-inner">
+              <div class="nr-sev2__donut-total"><?= $totalVulns ?></div>
+              <div class="nr-sev2__donut-sub">vulns</div>
+            </div>
+          </div>
+        </div>
+        <div class="nr-sev2__legend">
+          <?php foreach ($sevTotals as $key => $count):
+            if ($count === 0) continue;
+            $cl  = $sevColors[$key];
+            $lbl = $sevLabels[$key];
+            $pct = $totalVulns > 0 ? (int)round($count / $totalVulns * 100) : 0;
+          ?>
+          <div class="nr-sev2__legend-row">
+            <span class="nr-sev2__legend-dot" style="background:<?= $cl['bg'] ?>"></span>
+            <span class="nr-sev2__legend-name"><?= $h($lbl) ?></span>
+            <span class="nr-sev2__legend-count"><?= $count ?></span>
+            <span class="nr-sev2__legend-pct"><?= $pct ?>%</span>
+            <div class="nr-sev2__legend-bar">
+              <div class="nr-sev2__legend-bar-fill" style="width:<?= $pct ?>%;background:<?= $cl['bg'] ?>"></div>
+            </div>
+          </div>
+          <?php endforeach; ?>
+        </div>
+      </div>
+
+      <!-- Distribution bar -->
+      <div class="nr-sev2__bar">
+        <?php foreach ($sevTotals as $key => $count):
+          if ($count <= 0) continue;
+          $pctF = $totalVulns > 0 ? max(1, round($count / $totalVulns * 100, 2)) : 0;
+          $cl   = $sevColors[$key];
+          $lbl  = $sevLabels[$key];
+        ?>
+        <div class="nr-sev2__bar-seg" style="flex:<?= $pctF ?> 0 0;background:<?= $cl['bg'] ?>" title="<?= $h($lbl) ?>: <?= $count ?>">
+          <?php if ($pctF >= 8): ?><?= $count ?><?php endif; ?>
+        </div>
+        <?php endforeach; ?>
+      </div>
     </div>
 
     <!-- KPI CARDS -->
