@@ -1534,6 +1534,33 @@ class TicketService
         return sprintf('[%s] %s - %s', $severity, sprintf(__('Multiple assets (%d)', 'nessusglpi'), count($targets)), $name);
     }
 
+    /** Heuristic OS family from plugin name + host names. */
+    private function detectOsFamilyLabel(string $signal): string
+    {
+        if (preg_match('/linux|ubuntu|debian|centos|red\s?hat|rhel|rocky|alma|suse|sles|fedora|oracle\s+linux|amazon\s+linux|alpine/i', $signal)) {
+            return '🐧 Linux';
+        }
+        if (preg_match('/windows|microsoft|\bkb\d|\.net\b|win32|win64/i', $signal)) {
+            return '🪟 Windows';
+        }
+        return '—';
+    }
+
+    /** GLPI asset link status for a Nessus host record. */
+    private function glpiLinkLabel(?array $hostFields): string
+    {
+        $hostFields = $hostFields ?? [];
+        if (!empty($hostFields['items_id']) && !empty($hostFields['itemtype']) && class_exists((string) $hostFields['itemtype'])) {
+            $itemtype = (string) $hostFields['itemtype'];
+            $obj = new $itemtype();
+            if ($obj->getFromDB((int) $hostFields['items_id'])) {
+                $name = trim((string) ($obj->fields['name'] ?? ''));
+                return '✅ ' . ($name !== '' ? $name : '#' . (int) $hostFields['items_id']);
+            }
+        }
+        return '⚠️ ' . __('Não inventariado (sem vínculo)', 'nessusglpi');
+    }
+
     private function buildVulnerabilityContent(array $fields, ?array $hostFields, ?array $scanFields, ?array $pluginDetails): string
     {
         $details = $this->normalizePluginDetails($pluginDetails);
@@ -1561,8 +1588,16 @@ class TicketService
         $html[] = '<div style="font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif;">';
         $html[] = $this->renderTicketHero($severityMeta, $name, '🛡️ ' . __('Vulnerability detected by Nessus', 'nessusglpi'));
 
+        $hf        = $hostFields ?? [];
+        $hostIp    = $this->cleanText((string) ($hf['ip'] ?? ''));
+        $osLabel   = $this->detectOsFamilyLabel($name . ' ' . (string) ($hf['fqdn'] ?? '') . ' ' . (string) ($hf['hostname'] ?? ''));
+        $linkLabel = $this->glpiLinkLabel($hostFields);
+
         $html[] = $this->renderTicketCallout('🎯 ' . __('Target & context', 'nessusglpi'), [
             '🖥️ ' . __('Host', 'nessusglpi')          => $hostLabel,
+            '🌐 IP'                                    => $hostIp !== '' ? $hostIp : '—',
+            '💻 ' . __('Sistema (detectado)', 'nessusglpi') => $osLabel,
+            '🔗 ' . __('Vínculo GLPI', 'nessusglpi')   => $linkLabel,
             '🗂️ ' . __('Scan', 'nessusglpi')          => $this->cleanText((string) ($scanFields['name'] ?? '')),
             '📌 ' . __('Plugin ID', 'nessusglpi')      => $this->firstNonEmpty([$details['plugin_id'], $fields['plugin_id_nessus'] ?? null]),
             '🔍 ' . __('Scan ID', 'nessusglpi')        => (string) ($scanFields['scan_id'] ?? ''),
@@ -2096,10 +2131,10 @@ class TicketService
         $safeTitle = htmlspecialchars($title, ENT_QUOTES);
         $safeSubtitle = htmlspecialchars($subtitle, ENT_QUOTES);
 
-        return '<div style="background:' . $bg . '; border-left:5px solid ' . $border . '; padding:18px 22px; border-radius:6px; margin-bottom:22px;">'
-            . '<div style="display:inline-block; background:' . $border . '; color:#fff; font-weight:700; font-size:12px; letter-spacing:0.05em; padding:4px 12px; border-radius:999px; margin-bottom:10px;">' . $icon . ' ' . $label . '</div>'
-            . '<div style="font-size:13px; color:' . $color . '; font-weight:600; text-transform:uppercase; letter-spacing:0.03em; margin-bottom:4px;">' . $safeSubtitle . '</div>'
-            . '<h2 style="margin:0; font-size:22px; line-height:1.3; color:#0f172a; font-weight:600;">' . $safeTitle . '</h2>'
+        return '<div style="background:' . $bg . '; border:1px solid ' . $border . '40; border-left:5px solid ' . $border . '; padding:20px 24px; border-radius:12px; margin-bottom:24px; box-shadow:0 10px 26px -16px rgba(15,23,42,.4);">'
+            . '<div style="display:inline-block; background:' . $border . '; color:#fff; font-weight:700; font-size:11px; letter-spacing:0.06em; text-transform:uppercase; padding:5px 13px; border-radius:999px; margin-bottom:12px; box-shadow:0 4px 10px -4px ' . $border . '80;">' . $icon . ' ' . $label . '</div>'
+            . '<div style="font-size:12px; color:' . $color . '; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:5px;">' . $safeSubtitle . '</div>'
+            . '<h2 style="margin:0; font-size:22px; line-height:1.3; color:#0f172a; font-weight:700;">' . $safeTitle . '</h2>'
             . '</div>';
     }
 
@@ -2119,18 +2154,25 @@ class TicketService
         }
 
         $items = '';
+        $i = 0;
+        $count = count($rows);
         foreach ($rows as $label => $value) {
-            $items .= '<tr>'
-                . '<td style="padding:6px 12px 6px 0; color:#475569; font-size:13px; font-weight:600; white-space:nowrap; vertical-align:top;">' . $label . '</td>'
-                . '<td style="padding:6px 0; color:#0f172a; font-size:14px; vertical-align:top;">' . htmlspecialchars((string) $value, ENT_QUOTES) . '</td>'
+            $rowBg  = $i % 2 === 0 ? '#ffffff' : '#f8fafc';
+            $border = $i === $count - 1 ? 'none' : '1px solid #eef2f6';
+            $items .= '<tr style="background:' . $rowBg . ';">'
+                . '<td style="padding:11px 18px; color:#64748b; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; white-space:nowrap; vertical-align:top; width:180px; border-bottom:' . $border . ';">' . $label . '</td>'
+                . '<td style="padding:11px 18px; color:#0f172a; font-size:14px; font-weight:600; vertical-align:top; border-bottom:' . $border . ';">' . htmlspecialchars((string) $value, ENT_QUOTES) . '</td>'
                 . '</tr>';
+            $i++;
         }
 
         return '<section style="margin:22px 0;">'
-            . '<h3 style="font-size:16px; font-weight:700; color:#0f172a; margin:0 0 10px 0; padding-bottom:6px; border-bottom:1px solid #e5e7eb;">' . $titleHtml . '</h3>'
-            . '<table style="border-collapse:collapse; width:100%; background:#f8fafc; border-radius:6px; padding:8px;">'
+            . '<h3 style="font-size:16px; font-weight:700; color:#0f172a; margin:0 0 12px 0; display:flex; align-items:center; gap:8px;">' . $titleHtml . '</h3>'
+            . '<div style="border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; box-shadow:0 6px 18px -12px rgba(15,23,42,.25);">'
+            . '<table style="border-collapse:collapse; width:100%;">'
             . $items
             . '</table>'
+            . '</div>'
             . '</section>';
     }
 
