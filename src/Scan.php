@@ -349,6 +349,10 @@ class Scan extends CommonDBTM
 
     public static function getMenuContent(): array
     {
+        if (!self::canView()) {
+            return [];
+        }
+
         $search = '/plugins/nessusglpi/front/scan.php';
         $form   = '/plugins/nessusglpi/front/scan.form.php';
 

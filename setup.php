@@ -13,6 +13,8 @@ function plugin_init_nessusglpi(): void
 {
     global $PLUGIN_HOOKS;
 
+    NessusProfile::syncCurrentProfileRights();
+
     $PLUGIN_HOOKS[Hooks::CSRF_COMPLIANT]['nessusglpi'] = true;
     $PLUGIN_HOOKS[Hooks::CONFIG_PAGE]['nessusglpi'] = 'front/config.form.php';
     $PLUGIN_HOOKS[Hooks::MENU_TOADD]['nessusglpi'] = [

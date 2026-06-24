@@ -191,6 +191,28 @@ class Profile extends CoreProfile
         return $result;
     }
 
+    public static function syncCurrentProfileRights(): void
+    {
+        global $DB;
+
+        if (
+            !isset($DB)
+            || !isset($_SESSION['glpiactiveprofile'])
+            || !is_array($_SESSION['glpiactiveprofile'])
+        ) {
+            return;
+        }
+
+        $profileId = (int) ($_SESSION['glpiactiveprofile']['id'] ?? 0);
+        if ($profileId <= 0 || !$DB->tableExists('glpi_profilerights')) {
+            return;
+        }
+
+        foreach (static::getCurrentRightsForProfile($profileId) as $field => $rights) {
+            $_SESSION['glpiactiveprofile'][$field] = $rights;
+        }
+    }
+
     public function getTabNameForItem(CommonGLPI $item, $withtemplate = 0): string
     {
         if ($item instanceof CoreProfile) {
