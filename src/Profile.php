@@ -213,10 +213,15 @@ class Profile extends CoreProfile
         }
     }
 
+    public static function getIcon(): string
+    {
+        return 'ti ti-shield-search';
+    }
+
     public function getTabNameForItem(CommonGLPI $item, $withtemplate = 0): string
     {
         if ($item instanceof CoreProfile) {
-            return __('Nessus Conector', 'nessusglpi');
+            return self::createTabEntry(__('Nessus Conector', 'nessusglpi'), 0, null, self::getIcon());
         }
 
         return '';
